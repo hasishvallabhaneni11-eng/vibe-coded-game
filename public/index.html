@@ -1,0 +1,381 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0, user-scalable=no">
+  <meta name="description" content="Hand Cricket Ultimate - Play multiplayer hand cricket with friends anywhere in the world!">
+  <title>Hand Cricket Ultimate</title>
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link href="https://fonts.googleapis.com/css2?family=Outfit:wght@300;400;500;600;700;800;900&family=Orbitron:wght@400;500;600;700;800;900&display=swap" rel="stylesheet">
+  <link rel="stylesheet" href="style.css">
+</head>
+<body>
+  <canvas id="particle-canvas"></canvas>
+  <div id="app">
+
+    <div id="name-screen" class="screen active">
+      <div class="glass-panel name-panel animate-in">
+        <div class="logo-container">
+          <div class="logo-glow"></div>
+          <h1 class="game-title">
+            <span class="title-hand">HAND</span>
+            <span class="title-cricket">CRICKET</span>
+          </h1>
+          <p class="title-sub">ULTIMATE</p>
+        </div>
+        <div class="input-group">
+          <label for="player-name-input">What should we call you, champion?</label>
+          <input type="text" id="player-name-input" placeholder="Enter your name..." maxlength="15" autocomplete="off">
+        </div>
+        <button id="name-submit-btn" class="btn btn-primary btn-large">
+          <span>LET'S GO</span>
+          <div class="btn-shine"></div>
+        </button>
+      </div>
+    </div>
+
+    <div id="home-screen" class="screen">
+      <div class="home-header animate-in">
+        <div class="logo-mini">
+          <h1 class="game-title-sm">
+            <span class="title-hand">HAND</span>
+            <span class="title-cricket">CRICKET</span>
+          </h1>
+        </div>
+        <div class="player-greeting">
+          <span id="greeting-text">Welcome back,</span>
+          <span id="player-display-name" class="glow-text"></span>
+        </div>
+      </div>
+
+      <div class="home-modes">
+        <button id="mode-1v1-btn" class="mode-card animate-in" style="--delay: 0.1s">
+          <div class="mode-icon">
+            <div class="icon-vs">
+              <span>1</span>
+              <span class="vs-text">VS</span>
+              <span>1</span>
+            </div>
+          </div>
+          <h2>1 vs 1</h2>
+          <p>Challenge a friend to a duel</p>
+          <div class="card-glow"></div>
+        </button>
+
+        <button id="mode-team-btn" class="mode-card animate-in" style="--delay: 0.25s">
+          <div class="mode-icon">
+            <div class="icon-team">
+              <span>⚔️</span>
+            </div>
+          </div>
+          <h2>Team Battle</h2>
+          <p>Coming Soon</p>
+          <div class="card-glow"></div>
+          <div class="coming-soon-badge">SOON</div>
+        </button>
+      </div>
+
+      <button id="settings-btn" class="btn btn-ghost animate-in" style="--delay: 0.4s">
+        <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+          <circle cx="12" cy="12" r="3"></circle>
+          <path d="M12 1v2M12 21v2M4.22 4.22l1.42 1.42M18.36 18.36l1.42 1.42M1 12h2M21 12h2M4.22 19.78l1.42-1.42M18.36 5.64l1.42-1.42"></path>
+        </svg>
+        <span>Settings</span>
+      </button>
+    </div>
+
+    <div id="room-screen" class="screen">
+      <button class="back-btn" id="room-back-btn">
+        <svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M19 12H5M12 19l-7-7 7-7"/></svg>
+      </button>
+      <div class="room-options animate-in">
+        <h2 class="section-title">Choose Your Path</h2>
+        <div class="room-cards">
+          <button id="create-room-btn" class="room-card">
+            <div class="room-card-icon">🏟️</div>
+            <h3>Create Room</h3>
+            <p>Host a match & share the code</p>
+            <div class="card-glow"></div>
+          </button>
+          <button id="join-room-btn" class="room-card">
+            <div class="room-card-icon">🎯</div>
+            <h3>Join Room</h3>
+            <p>Enter a code to join a match</p>
+            <div class="card-glow"></div>
+          </button>
+        </div>
+      </div>
+    </div>
+
+    <div id="waiting-screen" class="screen">
+      <button class="back-btn" id="waiting-back-btn">
+        <svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M19 12H5M12 19l-7-7 7-7"/></svg>
+      </button>
+      <div class="glass-panel waiting-panel animate-in">
+        <div class="waiting-spinner">
+          <div class="spinner-ring"></div>
+          <div class="spinner-ring"></div>
+          <div class="spinner-ring"></div>
+        </div>
+        <h2>Waiting for Opponent</h2>
+        <p>Share this room code:</p>
+        <div class="room-code-display">
+          <span id="room-code-text"></span>
+          <button id="copy-code-btn" class="btn-icon" title="Copy Code">
+            <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><rect x="9" y="9" width="13" height="13" rx="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg>
+          </button>
+        </div>
+        <p class="hint-text">Anyone with this code can join from anywhere!</p>
+      </div>
+    </div>
+
+    <div id="join-screen" class="screen">
+      <button class="back-btn" id="join-back-btn">
+        <svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M19 12H5M12 19l-7-7 7-7"/></svg>
+      </button>
+      <div class="glass-panel join-panel animate-in">
+        <h2>Join a Match</h2>
+        <p>Enter the room code shared by your friend</p>
+        <div class="code-input-group">
+          <input type="text" id="join-code-input" class="code-input" placeholder="ABCDEF" maxlength="6" autocomplete="off">
+        </div>
+        <button id="join-submit-btn" class="btn btn-primary btn-large">
+          <span>JOIN MATCH</span>
+          <div class="btn-shine"></div>
+        </button>
+        <p id="join-error-msg" class="error-msg hidden"></p>
+      </div>
+    </div>
+
+    <div id="rps-screen" class="screen">
+      <div class="rps-container animate-in">
+        <h2 class="section-title">Toss Time!</h2>
+        <p class="rps-subtitle">Rock Paper Scissors - Winner chooses Bat or Bowl</p>
+
+        <div class="rps-players">
+          <div class="rps-player" id="rps-player-left">
+            <span class="rps-player-name" id="rps-name-left"></span>
+            <div class="rps-hand" id="rps-hand-left">❓</div>
+            <span class="rps-status" id="rps-status-left">Choosing...</span>
+          </div>
+          <div class="rps-vs">VS</div>
+          <div class="rps-player" id="rps-player-right">
+            <span class="rps-player-name" id="rps-name-right"></span>
+            <div class="rps-hand" id="rps-hand-right">❓</div>
+            <span class="rps-status" id="rps-status-right">Choosing...</span>
+          </div>
+        </div>
+
+        <div class="timer-ring" id="rps-timer-ring">
+          <svg viewBox="0 0 100 100">
+            <circle class="timer-bg" cx="50" cy="50" r="45"/>
+            <circle class="timer-progress" id="rps-timer-progress" cx="50" cy="50" r="45"/>
+          </svg>
+          <span class="timer-text" id="rps-timer-text">5</span>
+        </div>
+
+        <div class="rps-choices" id="rps-choices">
+          <button class="rps-btn" data-choice="rock">
+            <span class="rps-emoji">🪨</span>
+            <span>Rock</span>
+          </button>
+          <button class="rps-btn" data-choice="paper">
+            <span class="rps-emoji">📄</span>
+            <span>Paper</span>
+          </button>
+          <button class="rps-btn" data-choice="scissors">
+            <span class="rps-emoji">✂️</span>
+            <span>Scissors</span>
+          </button>
+        </div>
+      </div>
+    </div>
+
+    <div id="toss-choice-screen" class="screen">
+      <div class="glass-panel toss-panel animate-in">
+        <h2>🏆 You Won the Toss!</h2>
+        <p id="toss-loser-msg" class="hidden">Waiting for opponent to choose...</p>
+        <div id="toss-choice-buttons">
+          <button class="toss-btn" data-choice="bat">
+            <span class="toss-emoji">🏏</span>
+            <span>Bat First</span>
+          </button>
+          <button class="toss-btn" data-choice="bowl">
+            <span class="toss-emoji">🎯</span>
+            <span>Bowl First</span>
+          </button>
+        </div>
+      </div>
+    </div>
+
+    <div id="game-screen" class="screen">
+      <div class="game-hud">
+        <div class="hud-top">
+          <div class="hud-innings" id="hud-innings">1st Innings</div>
+          <div class="hud-target hidden" id="hud-target">Target: --</div>
+        </div>
+        <div class="hud-scoreboard">
+          <div class="hud-player" id="hud-player-left">
+            <span class="hud-name" id="hud-name-left"></span>
+            <span class="hud-role" id="hud-role-left">🏏 Batting</span>
+            <span class="hud-score" id="hud-score-left">0</span>
+            <span class="hud-balls" id="hud-balls-left">(0 balls)</span>
+          </div>
+          <div class="hud-divider">
+            <span>VS</span>
+          </div>
+          <div class="hud-player" id="hud-player-right">
+            <span class="hud-name" id="hud-name-right"></span>
+            <span class="hud-role" id="hud-role-right">🎯 Bowling</span>
+            <span class="hud-score" id="hud-score-right">0</span>
+            <span class="hud-balls" id="hud-balls-right">(0 balls)</span>
+          </div>
+        </div>
+      </div>
+
+      <div class="game-arena">
+        <div class="ball-result-overlay hidden" id="ball-result-overlay">
+          <div class="result-content">
+            <div class="result-hands">
+              <span id="result-bat-hand" class="result-hand"></span>
+              <span class="result-vs">VS</span>
+              <span id="result-bowl-hand" class="result-hand"></span>
+            </div>
+            <div id="result-text" class="result-text"></div>
+          </div>
+        </div>
+
+        <div class="timer-ring game-timer" id="game-timer-ring">
+          <svg viewBox="0 0 100 100">
+            <circle class="timer-bg" cx="50" cy="50" r="45"/>
+            <circle class="timer-progress" id="game-timer-progress" cx="50" cy="50" r="45"/>
+          </svg>
+          <span class="timer-text" id="game-timer-text">5</span>
+        </div>
+
+        <p class="game-instruction" id="game-instruction">Pick a number!</p>
+
+        <div class="number-grid" id="number-grid">
+          <button class="num-btn" data-num="1"><span>1</span></button>
+          <button class="num-btn" data-num="2"><span>2</span></button>
+          <button class="num-btn" data-num="3"><span>3</span></button>
+          <button class="num-btn" data-num="4"><span>4</span></button>
+          <button class="num-btn" data-num="5"><span>5</span></button>
+          <button class="num-btn" data-num="6"><span>6</span></button>
+        </div>
+
+        <!-- Quick Reactions Bar -->
+        <div class="reactions-bar" id="reactions-bar">
+          <button class="reaction-btn" data-emoji="😂">😂</button>
+          <button class="reaction-btn" data-emoji="🔥">🔥</button>
+          <button class="reaction-btn" data-emoji="👏">👏</button>
+          <button class="reaction-btn" data-emoji="😢">😢</button>
+          <button class="reaction-btn" data-emoji="😤">😤</button>
+          <button class="reaction-btn" data-emoji="🎉">🎉</button>
+          <button class="reaction-btn" data-emoji="💪">💪</button>
+          <button class="reaction-btn" data-emoji="👀">👀</button>
+          <button class="reaction-btn" data-emoji="🤯">🤯</button>
+          <button class="reaction-btn" data-emoji="❤️">❤️</button>
+        </div>
+
+        <!-- Chat Toggle + Panel -->
+        <button class="chat-toggle-btn" id="chat-toggle-btn">
+          💬
+          <span class="chat-badge hidden" id="chat-badge">!</span>
+        </button>
+        <div class="chat-panel hidden" id="chat-panel">
+          <div class="chat-header">
+            <span>Chat</span>
+            <button class="chat-close-btn" id="chat-close-btn">✕</button>
+          </div>
+          <div class="chat-messages" id="chat-messages"></div>
+          <div class="chat-input-row">
+            <input type="text" id="chat-input" placeholder="Type a message..." maxlength="100" autocomplete="off">
+            <button id="chat-send-btn" class="chat-send-btn">
+              <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M22 2L11 13"/><path d="M22 2L15 22l-4-9-9-4z"/></svg>
+            </button>
+          </div>
+        </div>
+
+        <!-- Floating Reactions Display -->
+        <div class="floating-reactions" id="floating-reactions"></div>
+
+        <!-- Milestone Overlay -->
+        <div class="milestone-overlay hidden" id="milestone-overlay">
+          <div class="milestone-content">
+            <div class="milestone-stars" id="milestone-stars"></div>
+            <div class="milestone-number" id="milestone-number">50</div>
+            <div class="milestone-label" id="milestone-label">HALF CENTURY!</div>
+            <div class="milestone-player" id="milestone-player"></div>
+          </div>
+        </div>
+      </div>
+    </div>
+
+    <div id="result-screen" class="screen">
+      <div class="result-panel animate-in">
+        <div class="confetti-container" id="confetti-container"></div>
+        <div class="trophy-container">
+          <span class="trophy-emoji">🏆</span>
+        </div>
+        <h2 id="winner-text" class="winner-text"></h2>
+        <p id="result-message" class="result-message"></p>
+        <div class="final-scores" id="final-scores"></div>
+        <button id="play-again-btn" class="btn btn-primary btn-large">
+          <span>PLAY AGAIN</span>
+          <div class="btn-shine"></div>
+        </button>
+      </div>
+    </div>
+
+    <div id="settings-screen" class="screen">
+      <button class="back-btn" id="settings-back-btn">
+        <svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M19 12H5M12 19l-7-7 7-7"/></svg>
+      </button>
+      <div class="glass-panel settings-panel animate-in">
+        <h2>⚙️ Settings</h2>
+        <div class="setting-item">
+          <label>Player Name</label>
+          <div class="setting-row">
+            <input type="text" id="settings-name-input" maxlength="15" autocomplete="off">
+            <button id="settings-save-name" class="btn btn-small">Save</button>
+          </div>
+        </div>
+        <div class="setting-item">
+          <label>Sound Effects</label>
+          <div class="toggle-switch">
+            <input type="checkbox" id="sound-toggle" checked>
+            <span class="toggle-slider"></span>
+          </div>
+        </div>
+        <div class="setting-item">
+          <label>Particles</label>
+          <div class="toggle-switch">
+            <input type="checkbox" id="particles-toggle" checked>
+            <span class="toggle-slider"></span>
+          </div>
+        </div>
+        <div class="setting-item credits">
+          <p>Hand Cricket Ultimate v1.0</p>
+          <p class="credit-sub">Built with ❤️</p>
+        </div>
+      </div>
+    </div>
+
+    <div id="error-modal" class="modal hidden">
+      <div class="modal-content glass-panel animate-in">
+        <div class="modal-icon">⚠️</div>
+        <h3 id="error-title">Connection Error</h3>
+        <p id="error-message"></p>
+        <button id="error-ok-btn" class="btn btn-primary">
+          <span>OK</span>
+        </button>
+      </div>
+    </div>
+
+  </div>
+  <script src="/socket.io/socket.io.js"></script>
+  <script src="game.js"></script>
+</body>
+</html>
