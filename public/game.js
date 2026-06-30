@@ -1182,6 +1182,10 @@ socket.on('innings-change', (data) => {
 });
 
 socket.on('match-over', (data) => {
+  if (data.scorecardData) {
+    renderScorecard(data.scorecardData);
+  }
+
   const isWinner = data.winnerId === socket.id;
   const isTie = data.winnerId === null;
 
@@ -2025,6 +2029,10 @@ socket.on('team-state', (data) => {
 
 // ----- Match over -----
 socket.on('team-match-over', (data) => {
+  if (data.scorecardData) {
+    renderScorecard(data.scorecardData);
+  }
+
   const me = teamMe();
   const myTeam = me ? me.team : null;
   const isWinner = myTeam === data.winningTeam;
@@ -2283,10 +2291,13 @@ socket.on('scorecard-data', (data) => {
 });
 
 function openScorecard() {
-  document.getElementById('scorecard-body').innerHTML = '<div class="sc-loading">Loading scorecard...</div>';
   document.getElementById('scorecard-modal').classList.remove('hidden');
-  socket.emit('get-scorecard');
   playSound('click');
+
+  if (currentScreenName !== 'teamResult' && currentScreenName !== 'result') {
+    document.getElementById('scorecard-body').innerHTML = '<div class="sc-loading">Loading scorecard...</div>';
+    socket.emit('get-scorecard');
+  }
 }
 
 document.getElementById('t-scorecard-btn').addEventListener('click', openScorecard);

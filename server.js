@@ -393,7 +393,20 @@ function teamFinishMatch(code, winningTeam, runDiff) {
         id: p.id, name: p.name, team: p.team, isCaptain: p.isCaptain,
         score: p.score, balls: p.balls, isOut: p.isOut,
         ballsBowled: p.ballsBowled, runsConceded: p.runsConceded, wicketsTaken: p.wicketsTaken
-      }))
+      })),
+      scorecardData: {
+        mode: 'team',
+        players: room.players.map(p => ({
+          id: p.id, name: p.name, team: p.team, isCaptain: p.isCaptain,
+          score: p.score, balls: p.balls, isOut: p.isOut,
+          ballsBowled: p.ballsBowled, runsConceded: p.runsConceded, wicketsTaken: p.wicketsTaken
+        })),
+        battingTeam: room.battingTeam,
+        bowlingTeam: room.bowlingTeam,
+        innings: room.innings,
+        target: room.target,
+        teamScores: room.teamScores
+      }
     });
     teamCleanupRoom(code);
   }, 1800);
@@ -402,6 +415,21 @@ function teamFinishMatch(code, winningTeam, runDiff) {
 function teamCleanupRoom(code) {
   const room = rooms[code];
   if (!room) return;
+
+  io.to(code).emit('scorecard-data', {
+    mode: 'team',
+    players: room.players.map(p => ({
+      id: p.id, name: p.name, team: p.team, isCaptain: p.isCaptain,
+      score: p.score, balls: p.balls, isOut: p.isOut,
+      ballsBowled: p.ballsBowled, runsConceded: p.runsConceded, wicketsTaken: p.wicketsTaken
+    })),
+    battingTeam: room.battingTeam,
+    bowlingTeam: room.bowlingTeam,
+    innings: room.innings,
+    target: room.target,
+    teamScores: room.teamScores
+  });
+
   if (room.ballTimer) clearInterval(room.ballTimer);
   if (room.toss && room.toss.timer) clearInterval(room.toss.timer);
   if (room.lobbyTimerInterval) clearInterval(room.lobbyTimerInterval);
@@ -877,7 +905,19 @@ io.on('connection', (socket) => {
             [room.players[0].id]: { name: room.players[0].name, score: room.players[0].score, balls: room.players[0].balls },
             [room.players[1].id]: { name: room.players[1].name, score: room.players[1].score, balls: room.players[1].balls }
           },
-          message: `${batsman.name} wins by ${2 - 0} wickets!`
+          message: `${batsman.name} wins by ${2 - 0} wickets!`,
+          scorecardData: {
+            mode: '1v1',
+            players: room.players.map(p => ({
+              id: p.id, name: p.name,
+              score: p.score, balls: p.balls, isOut: p.isOut,
+              ballsBowled: p.ballsBowled, runsConceded: p.runsConceded, wicketsTaken: p.wicketsTaken
+            })),
+            battingId: room.battingPlayer ? room.battingPlayer.id : null,
+            bowlingId: room.bowlingPlayer ? room.bowlingPlayer.id : null,
+            innings: room.innings,
+            target: room.target
+          }
         });
         cleanupRoom(socket.roomCode);
       }, 2000);
@@ -931,6 +971,19 @@ io.on('connection', (socket) => {
         const diff = room.target - batsman.score - 1;
         let matchData = {};
 
+        const scData = {
+          mode: '1v1',
+          players: room.players.map(p => ({
+            id: p.id, name: p.name,
+            score: p.score, balls: p.balls, isOut: p.isOut,
+            ballsBowled: p.ballsBowled, runsConceded: p.runsConceded, wicketsTaken: p.wicketsTaken
+          })),
+          battingId: room.battingPlayer ? room.battingPlayer.id : null,
+          bowlingId: room.bowlingPlayer ? room.bowlingPlayer.id : null,
+          innings: room.innings,
+          target: room.target
+        };
+
         if (diff === 0) {
           matchData = {
             winnerId: null,
@@ -939,7 +992,8 @@ io.on('connection', (socket) => {
               [room.players[0].id]: { name: room.players[0].name, score: room.players[0].score, balls: room.players[0].balls },
               [room.players[1].id]: { name: room.players[1].name, score: room.players[1].score, balls: room.players[1].balls }
             },
-            message: "Match Tied!"
+            message: "Match Tied!",
+            scorecardData: scData
           };
         } else {
           const winner = room.bowlingPlayer;
@@ -950,7 +1004,8 @@ io.on('connection', (socket) => {
               [room.players[0].id]: { name: room.players[0].name, score: room.players[0].score, balls: room.players[0].balls },
               [room.players[1].id]: { name: room.players[1].name, score: room.players[1].score, balls: room.players[1].balls }
             },
-            message: `${winner.name} wins by ${diff} runs!`
+            message: `${winner.name} wins by ${diff} runs!`,
+            scorecardData: scData
           };
         }
 
@@ -968,6 +1023,20 @@ io.on('connection', (socket) => {
   function cleanupRoom(code) {
     const room = rooms[code];
     if (!room) return;
+
+    io.to(code).emit('scorecard-data', {
+      mode: '1v1',
+      players: room.players.map(p => ({
+        id: p.id, name: p.name,
+        score: p.score, balls: p.balls, isOut: p.isOut,
+        ballsBowled: p.ballsBowled, runsConceded: p.runsConceded, wicketsTaken: p.wicketsTaken
+      })),
+      battingId: room.battingPlayer ? room.battingPlayer.id : null,
+      bowlingId: room.bowlingPlayer ? room.bowlingPlayer.id : null,
+      innings: room.innings,
+      target: room.target
+    });
+
     if (room.ballTimer) clearInterval(room.ballTimer);
     if (room.rpsTimer) clearInterval(room.rpsTimer);
     delete rooms[code];
@@ -1192,7 +1261,7 @@ io.on('connection', (socket) => {
     if (!room) return;
     const player = room.players.find(p => p.id === socket.id);
     if (!player) return;
-    const allowed = ['😂','🔥','👏','😢','🎉'];
+    const allowed = ['😭','😵‍💫','😎','😂','😱'];
     if (!allowed.includes(data.emoji)) return;
     io.to(socket.roomCode).emit('reaction', {
       senderId: socket.id,
