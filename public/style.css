@@ -1558,12 +1558,12 @@ html, body {
 }
 
 .reaction-btn {
-  width: 38px;
-  height: 38px;
+  width: 50px;
+  height: 50px;
   border-radius: 50%;
   border: 1px solid var(--glass-border);
   background: var(--glass-bg);
-  font-size: 18px;
+  font-size: 26px;
   cursor: pointer;
   transition: all 0.2s ease;
   display: flex;
@@ -2697,7 +2697,7 @@ html, body {
   .game-title { font-size: 26px; }
   .num-btn { font-size: 22px; }
   .number-grid { max-width: 210px; gap: 8px; }
-  .reaction-btn { width: 28px; height: 28px; font-size: 13px; }
+  .reaction-btn { width: 36px; height: 36px; font-size: 18px; }
   .lobby-code { font-size: 16px; }
   .team-score-value { font-size: 17px; }
   .sc-table-header, .sc-row { grid-template-columns: 1.6fr 0.6fr 0.6fr 0.7fr; font-size: 10px; }
