@@ -1,6 +1,6 @@
 {
   "name": "hand-cricket-ultimate",
-  "version": "1.0.0",
+  "version": "0.9.0",
   "description": "Ultimate Hand Cricket Multiplayer Game",
   "main": "server.js",
   "scripts": {

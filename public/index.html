@@ -23,6 +23,7 @@
             <span class="title-cricket">CRICKET</span>
           </h1>
           <p class="title-sub">ULTIMATE</p>
+          <span class="version-badge">v0.9</span>
         </div>
         <div class="input-group">
           <label for="player-name-input">What should we call you, champion?</label>
@@ -70,19 +71,11 @@
             </div>
           </div>
           <h2>Team Battle</h2>
-          <p>Coming Soon</p>
+          <p>Squad up with friends</p>
           <div class="card-glow"></div>
-          <div class="coming-soon-badge">SOON</div>
         </button>
       </div>
 
-      <button id="settings-btn" class="btn btn-ghost animate-in" style="--delay: 0.4s">
-        <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
-          <circle cx="12" cy="12" r="3"></circle>
-          <path d="M12 1v2M12 21v2M4.22 4.22l1.42 1.42M18.36 18.36l1.42 1.42M1 12h2M21 12h2M4.22 19.78l1.42-1.42M18.36 5.64l1.42-1.42"></path>
-        </svg>
-        <span>Settings</span>
-      </button>
     </div>
 
     <div id="room-screen" class="screen">
@@ -145,6 +138,135 @@
           <div class="btn-shine"></div>
         </button>
         <p id="join-error-msg" class="error-msg hidden"></p>
+      </div>
+    </div>
+
+    <div id="team-lobby-screen" class="screen">
+      <button class="back-btn" id="team-lobby-back-btn">
+        <svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M19 12H5M12 19l-7-7 7-7"/></svg>
+      </button>
+      <div class="glass-panel lobby-panel animate-in">
+        <h2 class="section-title">Team Lobby</h2>
+        <div class="lobby-code-row hidden" id="lobby-code-row">
+          <span>Room Code:</span>
+          <span id="lobby-code-text" class="lobby-code"></span>
+          <button id="lobby-copy-code-btn" class="btn-icon" title="Copy Code">
+            <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><rect x="9" y="9" width="13" height="13" rx="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg>
+          </button>
+        </div>
+        <p class="lobby-status" id="lobby-status">Waiting for players to join...</p>
+
+        <div class="lobby-teams">
+          <div class="lobby-team team-a">
+            <h3>Team A</h3>
+            <div class="player-chip-list" id="lobby-team-a"></div>
+          </div>
+          <div class="lobby-team team-b">
+            <h3>Team B</h3>
+            <div class="player-chip-list" id="lobby-team-b"></div>
+          </div>
+        </div>
+        <div class="lobby-pool" id="lobby-pool-section">
+          <h3>Waiting Room</h3>
+          <div class="player-chip-list" id="lobby-unassigned"></div>
+        </div>
+
+        <div class="lobby-start-row" id="lobby-start-row">
+          <div class="lobby-timer">
+            <span class="lobby-timer-label">Auto-start in</span>
+            <span class="lobby-timer-value" id="lobby-timer-value">5:00</span>
+          </div>
+          <button class="btn btn-primary btn-large" id="lobby-start-btn" disabled>
+            <span>START GAME</span>
+            <div class="btn-shine"></div>
+          </button>
+        </div>
+        <p class="hint-text hidden" id="lobby-wait-host-msg">Waiting for the host to start the match...</p>
+      </div>
+    </div>
+
+    <div id="team-toss-screen" class="screen">
+      <div class="rps-container animate-in">
+        <h2 class="section-title" id="tt-title">Draft Toss!</h2>
+        <p class="rps-subtitle" id="tt-subtitle">Captains play Rock Paper Scissors — winner picks first</p>
+
+        <div class="rps-players">
+          <div class="rps-player" id="tt-player-left">
+            <span class="rps-player-name" id="tt-name-left"></span>
+            <div class="rps-hand" id="tt-hand-left">❓</div>
+            <span class="rps-status" id="tt-status-left">Choosing...</span>
+          </div>
+          <div class="rps-vs">VS</div>
+          <div class="rps-player" id="tt-player-right">
+            <span class="rps-player-name" id="tt-name-right"></span>
+            <div class="rps-hand" id="tt-hand-right">❓</div>
+            <span class="rps-status" id="tt-status-right">Choosing...</span>
+          </div>
+        </div>
+
+        <div class="timer-ring" id="tt-timer-ring">
+          <svg viewBox="0 0 100 100">
+            <circle class="timer-bg" cx="50" cy="50" r="45"/>
+            <circle class="timer-progress" id="tt-timer-progress" cx="50" cy="50" r="45"/>
+          </svg>
+          <span class="timer-text" id="tt-timer-text">10</span>
+        </div>
+
+        <div class="rps-choices hidden" id="tt-choices">
+          <button class="rps-btn" data-choice="rock">
+            <span class="rps-emoji">🪨</span>
+            <span>Rock</span>
+          </button>
+          <button class="rps-btn" data-choice="paper">
+            <span class="rps-emoji">📄</span>
+            <span>Paper</span>
+          </button>
+          <button class="rps-btn" data-choice="scissors">
+            <span class="rps-emoji">✂️</span>
+            <span>Scissors</span>
+          </button>
+        </div>
+        <p class="hint-text hidden" id="tt-spectate-msg">Spectating the captains' toss...</p>
+      </div>
+    </div>
+
+    <div id="team-draft-screen" class="screen">
+      <div class="draft-container animate-in">
+        <h2 class="section-title">Draft Pick</h2>
+        <p class="rps-subtitle" id="draft-turn-text">Team A is picking...</p>
+
+        <div class="draft-teams">
+          <div class="draft-team team-a">
+            <h3>Team A</h3>
+            <div class="player-chip-list" id="draft-team-a"></div>
+          </div>
+          <div class="draft-team team-b">
+            <h3>Team B</h3>
+            <div class="player-chip-list" id="draft-team-b"></div>
+          </div>
+        </div>
+
+        <div class="draft-pool">
+          <h3>Available Players</h3>
+          <div class="player-chip-list" id="draft-pool-list"></div>
+        </div>
+      </div>
+    </div>
+
+    <div id="team-toss-choice-screen" class="screen">
+      <div class="glass-panel toss-panel animate-in">
+        <h2 id="ttc-title">🏆 Team A won the toss!</h2>
+        <p id="ttc-wait-msg" class="hidden">Waiting for captain to choose...</p>
+        <div id="ttc-buttons">
+          <button class="toss-btn" data-choice="bat">
+            <span class="toss-emoji">🏏</span>
+            <span>Bat First</span>
+          </button>
+          <button class="toss-btn" data-choice="bowl">
+            <span class="toss-emoji">🎯</span>
+            <span>Bowl First</span>
+          </button>
+        </div>
       </div>
     </div>
 
@@ -271,13 +393,9 @@
           <button class="reaction-btn" data-emoji="🔥">🔥</button>
           <button class="reaction-btn" data-emoji="👏">👏</button>
           <button class="reaction-btn" data-emoji="😢">😢</button>
-          <button class="reaction-btn" data-emoji="😤">😤</button>
           <button class="reaction-btn" data-emoji="🎉">🎉</button>
-          <button class="reaction-btn" data-emoji="💪">💪</button>
-          <button class="reaction-btn" data-emoji="👀">👀</button>
-          <button class="reaction-btn" data-emoji="🤯">🤯</button>
-          <button class="reaction-btn" data-emoji="❤️">❤️</button>
         </div>
+
 
         <!-- Chat Toggle + Panel -->
         <button class="chat-toggle-btn" id="chat-toggle-btn">
@@ -326,6 +444,137 @@
           <span>PLAY AGAIN</span>
           <div class="btn-shine"></div>
         </button>
+
+      </div>
+    </div>
+
+    <div id="team-game-screen" class="screen">
+      <div class="game-hud team-hud">
+        <div class="hud-top">
+          <div class="hud-innings" id="t-hud-innings">1st Innings</div>
+          <div class="over-display" id="t-over-display">Over 0.0</div>
+          <div class="hud-target hidden" id="t-hud-target">Target: --</div>
+        </div>
+        <div class="team-scoreboard">
+          <div class="team-score-card" id="t-team-a-card">
+            <span class="team-score-label">Team A</span>
+            <span class="team-score-value" id="t-team-a-score">0/0</span>
+          </div>
+          <div class="hud-divider"><span>VS</span></div>
+          <div class="team-score-card" id="t-team-b-card">
+            <span class="team-score-label">Team B</span>
+            <span class="team-score-value" id="t-team-b-score">0/0</span>
+          </div>
+        </div>
+        <div class="matchup-display">
+          <span class="matchup-bat">🏏 <span id="t-batsman-name">--</span> <span id="t-batsman-score">(0)</span></span>
+          <span class="matchup-vs">vs</span>
+          <span class="matchup-bowl">🎯 <span id="t-bowler-name">--</span></span>
+        </div>
+      </div>
+
+      <div class="game-arena">
+        <div class="ball-result-overlay hidden" id="t-ball-result-overlay">
+          <div class="result-content">
+            <div class="result-hands">
+              <span id="t-result-bat-hand" class="result-hand"></span>
+              <span class="result-vs">VS</span>
+              <span id="t-result-bowl-hand" class="result-hand"></span>
+            </div>
+            <div id="t-result-text" class="result-text"></div>
+          </div>
+        </div>
+
+        <div id="t-active-view" class="hidden">
+          <div class="timer-ring game-timer" id="t-game-timer-ring">
+            <svg viewBox="0 0 100 100">
+              <circle class="timer-bg" cx="50" cy="50" r="45"/>
+              <circle class="timer-progress" id="t-game-timer-progress" cx="50" cy="50" r="45"/>
+            </svg>
+            <span class="timer-text" id="t-game-timer-text">12</span>
+          </div>
+          <p class="game-instruction" id="t-game-instruction">Pick a number!</p>
+          <div class="number-grid" id="t-number-grid">
+            <button class="num-btn" data-num="1"><span>1</span></button>
+            <button class="num-btn" data-num="2"><span>2</span></button>
+            <button class="num-btn" data-num="3"><span>3</span></button>
+            <button class="num-btn" data-num="4"><span>4</span></button>
+            <button class="num-btn" data-num="5"><span>5</span></button>
+            <button class="num-btn" data-num="6"><span>6</span></button>
+          </div>
+        </div>
+
+        <div id="t-spectate-view">
+          <p class="game-instruction">📺 Watching the action...</p>
+          <div class="commentary-feed" id="commentary-feed"></div>
+        </div>
+
+        <!-- Quick Reactions Bar -->
+        <div class="reactions-bar" id="t-reactions-bar">
+          <button class="reaction-btn" data-emoji="😂">😂</button>
+          <button class="reaction-btn" data-emoji="🔥">🔥</button>
+          <button class="reaction-btn" data-emoji="👏">👏</button>
+          <button class="reaction-btn" data-emoji="😢">😢</button>
+          <button class="reaction-btn" data-emoji="🎉">🎉</button>
+        </div>
+
+        <button class="scorecard-btn" id="t-scorecard-btn">
+          <span class="scorecard-text">SCORECARD</span>
+          <span class="scorecard-pulse"></span>
+        </button>
+
+        <!-- Chat Toggle + Panel -->
+        <button class="chat-toggle-btn" id="t-chat-toggle-btn">
+          💬
+          <span class="chat-badge hidden" id="t-chat-badge">!</span>
+        </button>
+        <div class="chat-panel hidden" id="t-chat-panel">
+          <div class="chat-header">
+            <span>Chat</span>
+            <button class="chat-close-btn" id="t-chat-close-btn">✕</button>
+          </div>
+          <div class="chat-messages" id="t-chat-messages"></div>
+          <div class="chat-input-row">
+            <input type="text" id="t-chat-input" placeholder="Type a message..." maxlength="100" autocomplete="off">
+            <button id="t-chat-send-btn" class="chat-send-btn">
+              <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M22 2L11 13"/><path d="M22 2L15 22l-4-9-9-4z"/></svg>
+            </button>
+          </div>
+        </div>
+
+        <!-- Floating Reactions Display -->
+        <div class="floating-reactions" id="t-floating-reactions"></div>
+
+        <!-- Milestone Overlay -->
+        <div class="milestone-overlay hidden" id="t-milestone-overlay">
+          <div class="milestone-content">
+            <div class="milestone-stars" id="t-milestone-stars"></div>
+            <div class="milestone-number" id="t-milestone-number">50</div>
+            <div class="milestone-label" id="t-milestone-label">HALF CENTURY!</div>
+            <div class="milestone-player" id="t-milestone-player"></div>
+          </div>
+        </div>
+      </div>
+    </div>
+
+    <div id="team-result-screen" class="screen">
+      <div class="result-panel animate-in">
+        <div class="confetti-container" id="t-confetti-container"></div>
+        <div class="trophy-container">
+          <span class="trophy-emoji">🏆</span>
+        </div>
+        <h2 id="t-winner-text" class="winner-text"></h2>
+        <p id="t-result-message" class="result-message"></p>
+        <div class="team-final-scores" id="t-final-team-scores"></div>
+        <div class="final-scores" id="t-final-player-scores"></div>
+        <button id="t-play-again-btn" class="btn btn-primary btn-large">
+          <span>PLAY AGAIN</span>
+          <div class="btn-shine"></div>
+        </button>
+        <button class="scorecard-btn" id="t-result-scorecard-btn">
+          <span class="scorecard-text">SCORECARD</span>
+          <span class="scorecard-pulse"></span>
+        </button>
       </div>
     </div>
 
@@ -345,19 +594,13 @@
         <div class="setting-item">
           <label>Sound Effects</label>
           <div class="toggle-switch">
-            <input type="checkbox" id="sound-toggle" checked>
+            <input type="checkbox" id="sound-toggle">
             <span class="toggle-slider"></span>
           </div>
         </div>
-        <div class="setting-item">
-          <label>Particles</label>
-          <div class="toggle-switch">
-            <input type="checkbox" id="particles-toggle" checked>
-            <span class="toggle-slider"></span>
-          </div>
-        </div>
+
         <div class="setting-item credits">
-          <p>Hand Cricket Ultimate v1.0</p>
+          <p>Hand Cricket Ultimate v0.9</p>
           <p class="credit-sub">Built with ❤️</p>
         </div>
       </div>
@@ -372,6 +615,67 @@
           <span>OK</span>
         </button>
       </div>
+    </div>
+
+    <div id="team-select-modal" class="modal hidden">
+      <div class="modal-content glass-panel animate-in select-modal-content">
+        <div class="modal-icon" id="select-modal-icon">🎯</div>
+        <h3 id="select-modal-title">Select Bowler</h3>
+        <p id="select-modal-subtitle">Waiting for captain to choose...</p>
+        <div class="player-pick-list" id="select-modal-list"></div>
+      </div>
+    </div>
+
+    <button class="transfer-captain-btn hidden" id="transfer-captain-btn" title="Transfer Captaincy">👑</button>
+
+    <div id="transfer-captain-modal" class="modal hidden">
+      <div class="modal-content glass-panel animate-in">
+        <div class="modal-icon">👑</div>
+        <h3>Transfer Captaincy</h3>
+        <p>Pick a teammate to take over as captain</p>
+        <div class="player-pick-list" id="transfer-pick-list"></div>
+        <button class="btn btn-ghost" id="transfer-cancel-btn"><span>Cancel</span></button>
+      </div>
+    </div>
+
+    <div id="scorecard-modal" class="modal hidden">
+      <div class="modal-content glass-panel animate-in scorecard-modal-content">
+        <button class="chat-close-btn scorecard-close-btn" id="scorecard-close-btn">✕</button>
+        <h3>📋 Live Scorecard</h3>
+        <div id="scorecard-body"></div>
+      </div>
+    </div>
+
+    <!-- Main-screen floating chat bubble -->
+    <div class="chat-bubble-wrap" id="chat-bubble-wrap">
+      <div class="chat-bubble hidden" id="chat-bubble">
+        <span class="chat-bubble-name" id="chat-bubble-name"></span>
+        <span class="chat-bubble-text" id="chat-bubble-text"></span>
+      </div>
+    </div>
+
+    <!-- Global settings (top-right, every screen) -->
+    <button class="global-settings-btn" id="global-settings-btn" title="Settings">
+      <svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+        <circle cx="12" cy="12" r="3"></circle>
+        <path d="M12 1v2M12 21v2M4.22 4.22l1.42 1.42M18.36 18.36l1.42 1.42M1 12h2M21 12h2M4.22 19.78l1.42-1.42M18.36 5.64l1.42-1.42"></path>
+      </svg>
+    </button>
+
+    <div id="quick-settings-panel" class="quick-settings-panel hidden">
+      <div class="chat-header">
+        <span>⚙️ Quick Settings</span>
+        <button class="chat-close-btn" id="qsp-close-btn">✕</button>
+      </div>
+      <div class="setting-item">
+        <label>Sound Effects</label>
+        <div class="toggle-switch">
+          <input type="checkbox" id="sound-toggle-quick">
+          <span class="toggle-slider"></span>
+        </div>
+      </div>
+
+      <button class="btn btn-ghost btn-small" id="qsp-full-settings-btn">More Settings</button>
     </div>
 
   </div>
