@@ -934,6 +934,10 @@ socket.on('game-start', (data) => {
   document.getElementById('toss-loser-msg').classList.add('hidden');
   document.getElementById('toss-choice-buttons').classList.remove('hidden');
 
+  // Close any stale rematch overlays (race condition: both players press Play Again simultaneously)
+  document.getElementById('rematch-modal').classList.add('hidden');
+  document.getElementById('rematch-status').classList.add('hidden');
+
   playSound('success');
   showScreen('rps');
 });
@@ -1297,6 +1301,8 @@ document.getElementById('rematch-reject-btn').addEventListener('click', () => {
 
 socket.on('rematch-accepted', () => {
   // Both agreed — server will send game-start shortly
+  // Close the rematch modal in case it's still showing (race condition)
+  document.getElementById('rematch-modal').classList.add('hidden');
   const status = document.getElementById('rematch-status');
   status.textContent = '✅ Rematch accepted! Starting new game...';
   status.classList.remove('hidden');
