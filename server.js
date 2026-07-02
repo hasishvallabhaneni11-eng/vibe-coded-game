@@ -691,6 +691,12 @@ io.on('connection', (socket) => {
     const room = rooms[code];
     if (!room) return;
 
+    // Always clear any existing timer before starting a new one (prevents duplicate timers on draws)
+    if (room.rpsTimer) {
+      clearInterval(room.rpsTimer);
+      room.rpsTimer = null;
+    }
+
     let timeLeft = 10;
     io.to(code).emit('rps-timer', { time: timeLeft });
 
@@ -749,14 +755,15 @@ io.on('connection', (socket) => {
 
     let winner;
     if (p1.rpsChoice === p2.rpsChoice) {
+      // Capture choices BEFORE resetting them
+      const drawChoices = { [p1.id]: p1.rpsChoice, [p2.id]: p2.rpsChoice };
       p1.rpsChoice = null;
       p2.rpsChoice = null;
 
-      io.to(code).emit('rps-draw', {
-        choices: { [p1.id]: p1.rpsChoice, [p2.id]: p2.rpsChoice }
-      });
+      io.to(code).emit('rps-draw', { choices: drawChoices });
 
       room.state = 'rps';
+      // startRPSTimer will clear any old timer internally before starting fresh
       setTimeout(() => startRPSTimer(code), 2000);
       return;
     }

@@ -981,6 +981,12 @@ socket.on('rps-draw', () => {
   document.getElementById('rps-status-left').textContent = "It's a draw!";
   document.getElementById('rps-status-right').textContent = "It's a draw!";
 
+  // Immediately reset the timer ring so it doesn't stay stuck at 0 between rounds
+  const progress = document.getElementById('rps-timer-progress');
+  progress.classList.remove('warning', 'danger');
+  progress.style.strokeDashoffset = 0; // full ring = ready for next round
+  document.getElementById('rps-timer-text').textContent = '…';
+
   setTimeout(() => {
     document.getElementById('rps-hand-left').textContent = '❓';
     document.getElementById('rps-hand-right').textContent = '❓';
