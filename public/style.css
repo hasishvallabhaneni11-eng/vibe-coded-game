@@ -361,6 +361,179 @@ html, body {
   color: var(--cyan);
 }
 
+.btn-secondary {
+  background: linear-gradient(135deg, rgba(255,255,255,0.05) 0%, rgba(255,255,255,0.02) 100%);
+  color: #b0bec5;
+  border: 1px solid rgba(255, 255, 255, 0.12);
+  backdrop-filter: blur(8px);
+  text-transform: uppercase;
+  letter-spacing: 1.5px;
+}
+
+.btn-secondary:hover {
+  background: linear-gradient(135deg, rgba(255,255,255,0.12) 0%, rgba(255,255,255,0.06) 100%);
+  border-color: rgba(255, 255, 255, 0.3);
+  color: #fff;
+  box-shadow: 0 0 20px rgba(255, 255, 255, 0.06);
+  transform: translateY(-2px);
+}
+
+.btn-secondary:active {
+  transform: scale(0.96) translateY(0);
+}
+
+/* ===== RESULT ACTIONS ===== */
+.result-actions {
+  display: flex;
+  gap: 14px;
+  width: 100%;
+  margin-top: 16px;
+  animation: resultActionsIn 0.6s cubic-bezier(0.34, 1.56, 0.64, 1) 0.3s both;
+}
+
+@keyframes resultActionsIn {
+  0% { opacity: 0; transform: translateY(30px) scale(0.9); }
+  100% { opacity: 1; transform: translateY(0) scale(1); }
+}
+
+.result-actions .btn {
+  flex: 1;
+  min-width: 0;
+  padding: 16px 12px;
+  font-size: 15px;
+  font-weight: 800;
+  letter-spacing: 1.5px;
+  border-radius: 14px;
+  position: relative;
+  overflow: hidden;
+}
+
+.result-actions .btn-primary {
+  background: linear-gradient(135deg, #00e5ff 0%, #007cf0 50%, #6c5ce7 100%);
+  color: #000;
+  border: none;
+  box-shadow: 0 4px 20px rgba(0, 229, 255, 0.3), 0 0 40px rgba(0, 229, 255, 0.1);
+  animation: playAgainGlow 2s ease-in-out infinite;
+}
+
+@keyframes playAgainGlow {
+  0%, 100% { box-shadow: 0 4px 20px rgba(0, 229, 255, 0.3), 0 0 40px rgba(0, 229, 255, 0.1); }
+  50% { box-shadow: 0 4px 30px rgba(0, 229, 255, 0.5), 0 0 60px rgba(0, 229, 255, 0.2); }
+}
+
+.result-actions .btn-primary:hover {
+  transform: translateY(-3px) scale(1.03);
+  box-shadow: 0 6px 30px rgba(0, 229, 255, 0.5), 0 0 60px rgba(0, 229, 255, 0.2);
+}
+
+.result-actions .btn-primary:active {
+  transform: translateY(0) scale(0.97);
+}
+
+.result-actions .btn-primary:disabled {
+  background: linear-gradient(135deg, #37474f 0%, #263238 100%);
+  color: #78909c;
+  box-shadow: none;
+  animation: none;
+  cursor: not-allowed;
+}
+
+.result-actions .btn-secondary {
+  background: linear-gradient(135deg, rgba(255,255,255,0.06) 0%, rgba(255,255,255,0.02) 100%);
+  border: 1px solid rgba(255, 255, 255, 0.1);
+  color: #90a4ae;
+  box-shadow: 0 2px 12px rgba(0, 0, 0, 0.2);
+}
+
+.result-actions .btn-secondary:hover {
+  background: linear-gradient(135deg, rgba(255,255,255,0.12) 0%, rgba(255,255,255,0.06) 100%);
+  border-color: rgba(255, 255, 255, 0.25);
+  color: #eceff1;
+  transform: translateY(-2px);
+  box-shadow: 0 4px 20px rgba(0, 0, 0, 0.3);
+}
+
+.rematch-status {
+  text-align: center;
+  font-size: 14px;
+  font-weight: 600;
+  color: var(--cyan);
+  margin-top: 14px;
+  padding: 10px 16px;
+  background: rgba(0, 229, 255, 0.06);
+  border: 1px solid rgba(0, 229, 255, 0.15);
+  border-radius: 10px;
+  animation: rematchPulse 1.5s ease-in-out infinite;
+}
+
+@keyframes rematchPulse {
+  0%, 100% { opacity: 1; border-color: rgba(0, 229, 255, 0.15); }
+  50% { opacity: 0.6; border-color: rgba(0, 229, 255, 0.4); }
+}
+
+/* ===== REMATCH MODAL ===== */
+.rematch-modal-content {
+  max-width: 360px;
+  text-align: center;
+  padding: 32px 28px;
+}
+
+.rematch-modal-content h3 {
+  font-size: 24px;
+  font-weight: 800;
+  margin-bottom: 8px;
+  background: linear-gradient(135deg, #00e5ff, #6c5ce7);
+  -webkit-background-clip: text;
+  -webkit-text-fill-color: transparent;
+  background-clip: text;
+}
+
+.rematch-modal-content p {
+  color: var(--text-secondary);
+  margin-bottom: 24px;
+  font-size: 16px;
+  font-weight: 500;
+}
+
+.rematch-modal-actions {
+  display: flex;
+  gap: 14px;
+}
+
+.rematch-modal-actions .btn {
+  flex: 1;
+  padding: 14px 20px;
+  font-weight: 800;
+  font-size: 14px;
+  letter-spacing: 1.5px;
+  border-radius: 12px;
+}
+
+.rematch-modal-actions .btn-primary {
+  background: linear-gradient(135deg, #00e676, #00c853);
+  color: #000;
+  border: none;
+  box-shadow: 0 4px 20px rgba(0, 230, 118, 0.3);
+}
+
+.rematch-modal-actions .btn-primary:hover {
+  transform: translateY(-2px);
+  box-shadow: 0 6px 30px rgba(0, 230, 118, 0.5);
+}
+
+.rematch-modal-actions .btn-secondary {
+  background: rgba(244, 67, 54, 0.12);
+  color: #ef5350;
+  border: 1px solid rgba(244, 67, 54, 0.25);
+}
+
+.rematch-modal-actions .btn-secondary:hover {
+  background: rgba(244, 67, 54, 0.2);
+  border-color: rgba(244, 67, 54, 0.5);
+  color: #ff5252;
+  transform: translateY(-2px);
+}
+
 .btn-shine {
   position: absolute;
   top: 0;
@@ -1275,6 +1448,53 @@ html, body {
   filter: drop-shadow(0 0 20px var(--gold-glow));
 }
 
+/* ===== PREMIUM RESULT BUTTONS ===== */
+.result-btn-primary,
+.result-btn-secondary {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  gap: 4px;
+}
+
+.result-btn-icon {
+  font-size: 22px;
+  line-height: 1;
+}
+
+.result-btn-label {
+  font-family: var(--font-display);
+  font-size: 13px;
+  font-weight: 900;
+  letter-spacing: 2.5px;
+  text-transform: uppercase;
+}
+
+.result-actions .result-btn-primary .result-btn-label {
+  color: #000;
+}
+
+.result-actions .result-btn-secondary .result-btn-label {
+  background: linear-gradient(135deg, #90caf9 0%, #b0bec5 50%, #cfd8dc 100%);
+  -webkit-background-clip: text;
+  -webkit-text-fill-color: transparent;
+  background-clip: text;
+}
+
+.result-actions .result-btn-secondary:hover .result-btn-label {
+  background: linear-gradient(135deg, #e3f2fd 0%, #eceff1 100%);
+  -webkit-background-clip: text;
+  -webkit-text-fill-color: transparent;
+  background-clip: text;
+}
+
+@media (max-width: 480px) {
+  .result-btn-icon { font-size: 20px; }
+  .result-btn-label { font-size: 11px; letter-spacing: 2px; }
+}
+
+/* ===== WINNER TEXT / RESULT MESSAGE ===== */
 .winner-text {
   font-family: var(--font-display);
   font-size: 24px;
@@ -2088,7 +2308,8 @@ html, body {
 .commentary-feed {
   max-width: 320px;
   width: 100%;
-  max-height: 180px;
+  max-height: 260px;
+  min-height: 160px;
   overflow-y: auto;
   background: rgba(0, 0, 0, 0.25);
   border: 1px solid var(--glass-border);
@@ -2644,7 +2865,7 @@ html, body {
   .toss-btn { padding: 18px 28px; }
   .final-scores { flex-direction: column; align-items: center; }
   .reactions-bar { gap: 4px; max-width: 280px; }
-  .reaction-btn { width: 32px; height: 32px; font-size: 15px; }
+  .reaction-btn { width: 48px; height: 48px; font-size: 24px; }
   .chat-panel { width: calc(100vw - 20px); max-width: 280px; bottom: 64px; right: 10px; }
   .chat-toggle-btn { width: 42px; height: 42px; bottom: 10px; right: 10px; }
   .milestone-number { font-size: 60px; }
@@ -2658,7 +2879,7 @@ html, body {
   .team-scoreboard { gap: 10px; }
   .team-score-card { min-width: 80px; }
   .team-score-value { font-size: 20px; }
-  .commentary-feed { max-width: 100%; max-height: 120px; }
+  .commentary-feed { max-width: 100%; max-height: 220px; min-height: 180px; }
   .matchup-display { font-size: 11px; gap: 6px; }
   .transfer-captain-btn { width: 42px; height: 42px; bottom: 10px; left: 10px; font-size: 18px; }
   .lobby-start-row { flex-direction: column; align-items: stretch; gap: 12px; }
@@ -2697,7 +2918,7 @@ html, body {
   .game-title { font-size: 26px; }
   .num-btn { font-size: 22px; }
   .number-grid { max-width: 210px; gap: 8px; }
-  .reaction-btn { width: 36px; height: 36px; font-size: 18px; }
+  .reaction-btn { width: 44px; height: 44px; font-size: 22px; }
   .lobby-code { font-size: 16px; }
   .team-score-value { font-size: 17px; }
   .sc-table-header, .sc-row { grid-template-columns: 1.6fr 0.6fr 0.6fr 0.7fr; font-size: 10px; }

@@ -6,7 +6,10 @@ const path = require('path');
 const app = express();
 const server = http.createServer(app);
 const io = new Server(server, {
-  cors: { origin: '*' }
+  cors: { origin: '*' },
+  pingTimeout: 60000,
+  pingInterval: 25000,
+  transports: ['websocket', 'polling']
 });
 
 app.use(express.static(path.join(__dirname, 'public')));
@@ -371,7 +374,7 @@ function teamFinishMatch(code, winningTeam, runDiff) {
 
   let message;
   let finalWinningTeam = winningTeam;
-
+  
   if (runDiff === 0) {
     finalWinningTeam = null;
     message = "Match Tied!";
@@ -415,7 +418,7 @@ function teamFinishMatch(code, winningTeam, runDiff) {
 function teamCleanupRoom(code) {
   const room = rooms[code];
   if (!room) return;
-
+  
   io.to(code).emit('scorecard-data', {
     mode: 'team',
     players: room.players.map(p => ({
@@ -704,7 +707,7 @@ io.on('connection', (socket) => {
 
         if (!p1.rpsChoice || !p2.rpsChoice) {
           io.to(code).emit('game-error', { message: 'Time ran out! A player did not make a choice.' });
-          cleanupRoom(code);
+          destroyRoom(code);
           return;
         }
 
@@ -970,7 +973,7 @@ io.on('connection', (socket) => {
       } else {
         const diff = room.target - batsman.score - 1;
         let matchData = {};
-
+        
         const scData = {
           mode: '1v1',
           players: room.players.map(p => ({
@@ -1039,8 +1042,105 @@ io.on('connection', (socket) => {
 
     if (room.ballTimer) clearInterval(room.ballTimer);
     if (room.rpsTimer) clearInterval(room.rpsTimer);
+
+    // Keep room alive for rematch instead of deleting
+    room.state = 'finished';
+    room.rematchRequests = {};
+
+    // Auto-cleanup after 60s if no rematch
+    room.rematchTimeout = setTimeout(() => {
+      if (rooms[code] && rooms[code].state === 'finished') {
+        delete rooms[code];
+      }
+    }, 60000);
+  }
+
+  function destroyRoom(code) {
+    const room = rooms[code];
+    if (!room) return;
+    if (room.ballTimer) clearInterval(room.ballTimer);
+    if (room.rpsTimer) clearInterval(room.rpsTimer);
+    if (room.rematchTimeout) clearTimeout(room.rematchTimeout);
     delete rooms[code];
   }
+
+  function resetRoomForRematch(code) {
+    const room = rooms[code];
+    if (!room) { console.log('[REMATCH] resetRoomForRematch: room not found for', code); return; }
+    console.log('[REMATCH] resetRoomForRematch: resetting room', code, 'with players', room.players.map(p => p.id));
+
+    if (room.rematchTimeout) clearTimeout(room.rematchTimeout);
+
+    // Reset player stats
+    room.players.forEach(p => {
+      p.rpsChoice = null;
+      p.score = 0;
+      p.balls = 0;
+      p.currentChoice = null;
+      p.isOut = false;
+      p.ballsBowled = 0;
+      p.runsConceded = 0;
+      p.wicketsTaken = 0;
+    });
+
+    // Reset room state
+    room.state = 'rps';
+    room.tossWinner = null;
+    room.tossChoice = null;
+    room.battingPlayer = null;
+    room.bowlingPlayer = null;
+    room.innings = 1;
+    room.target = null;
+    room.ballTimer = null;
+    room.rpsTimer = null;
+    room.rematchRequests = {};
+
+    // Start fresh game
+    io.to(code).emit('game-start', {
+      players: room.players.map(p => ({ id: p.id, name: p.name })),
+      state: 'rps'
+    });
+
+    startRPSTimer(code);
+  }
+
+  socket.on('rematch-request', () => {
+    console.log('[REMATCH] rematch-request from', socket.id, 'roomCode:', socket.roomCode);
+    const room = rooms[socket.roomCode];
+    if (!room) { console.log('[REMATCH] no room found'); return; }
+    if (room.state !== 'finished') { console.log('[REMATCH] room state is', room.state, 'not finished'); return; }
+
+    room.rematchRequests[socket.id] = true;
+    console.log('[REMATCH] requests so far:', JSON.stringify(room.rematchRequests));
+
+    const opponent = room.players.find(p => p.id !== socket.id);
+    if (!opponent) { console.log('[REMATCH] no opponent found'); return; }
+
+    // Check if both players requested
+    if (room.rematchRequests[opponent.id]) {
+      console.log('[REMATCH] Both players agreed! Starting rematch...');
+      io.to(socket.roomCode).emit('rematch-accepted');
+      setTimeout(() => resetRoomForRematch(socket.roomCode), 1000);
+    } else {
+      console.log('[REMATCH] Notifying opponent', opponent.id);
+      // Notify opponent
+      io.to(opponent.id).emit('rematch-requested', {
+        fromName: room.players.find(p => p.id === socket.id).name
+      });
+    }
+  });
+
+  socket.on('rematch-decline', () => {
+    const code = socket.roomCode;
+    const room = rooms[code];
+    if (!room || room.state !== 'finished') return;
+
+    const opponent = room.players.find(p => p.id !== socket.id);
+    if (opponent) {
+      io.to(opponent.id).emit('rematch-declined');
+    }
+    destroyRoom(code);
+  });
 
   socket.on('team-toss-choice', (data) => {
     const room = rooms[socket.roomCode];
@@ -1284,10 +1384,19 @@ io.on('connection', (socket) => {
 
     const remaining = room.players.find(p => p.id !== socket.id);
 
+    if (room.state === 'finished') {
+      // Player left during rematch window
+      if (remaining) {
+        io.to(remaining.id).emit('rematch-cancelled');
+      }
+      destroyRoom(code);
+      return;
+    }
+
     if (remaining && room.state !== 'waiting') {
       io.to(remaining.id).emit('game-error', { message: 'Your opponent disconnected!' });
     }
-    cleanupRoom(code);
+    destroyRoom(code);
   });
 });
 

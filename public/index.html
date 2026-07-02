@@ -440,10 +440,18 @@
         <h2 id="winner-text" class="winner-text"></h2>
         <p id="result-message" class="result-message"></p>
         <div class="final-scores" id="final-scores"></div>
-        <button id="play-again-btn" class="btn btn-primary btn-large">
-          <span>PLAY AGAIN</span>
-          <div class="btn-shine"></div>
-        </button>
+        <div class="result-actions" id="result-actions">
+          <button id="play-again-btn" class="btn btn-primary btn-large result-btn-primary">
+            <span class="result-btn-icon">🔄</span>
+            <span class="result-btn-label">Play Again</span>
+            <div class="btn-shine"></div>
+          </button>
+          <button id="home-btn" class="btn btn-secondary btn-large result-btn-secondary">
+            <span class="result-btn-icon">🏠</span>
+            <span class="result-btn-label">Home</span>
+          </button>
+        </div>
+        <div id="rematch-status" class="rematch-status hidden"></div>
 
       </div>
     </div>
@@ -567,9 +575,9 @@
         <p id="t-result-message" class="result-message"></p>
         <div class="team-final-scores" id="t-final-team-scores"></div>
         <div class="final-scores" id="t-final-player-scores"></div>
-        <button id="t-play-again-btn" class="btn btn-primary btn-large">
-          <span>PLAY AGAIN</span>
-          <div class="btn-shine"></div>
+        <button id="t-home-btn" class="btn btn-secondary btn-large result-btn-secondary">
+          <span class="result-btn-icon">🏠</span>
+          <span class="result-btn-label">Home</span>
         </button>
         <button class="scorecard-btn" id="t-result-scorecard-btn">
           <span class="scorecard-text">SCORECARD</span>
@@ -635,6 +643,17 @@
         <p>Pick a teammate to take over as captain</p>
         <div class="player-pick-list" id="transfer-pick-list"></div>
         <button class="btn btn-ghost" id="transfer-cancel-btn"><span>Cancel</span></button>
+      </div>
+    </div>
+
+    <div id="rematch-modal" class="modal hidden">
+      <div class="modal-content glass-panel animate-in rematch-modal-content">
+        <h3>🔄 Rematch?</h3>
+        <p id="rematch-prompt-text">Opponent wants to play again!</p>
+        <div class="rematch-modal-actions">
+          <button id="rematch-accept-btn" class="btn btn-primary"><span>ACCEPT</span></button>
+          <button id="rematch-reject-btn" class="btn btn-secondary"><span>DECLINE</span></button>
+        </div>
       </div>
     </div>
 

@@ -1,4 +1,10 @@
-const socket = io();
+const socket = io({
+  transports: ['websocket', 'polling'],
+  reconnectionAttempts: 10,
+  reconnectionDelay: 1000,
+  reconnectionDelayMax: 5000,
+  timeout: 20000
+});
 
 const SCORE_LABELS = {
   1: { label: 'SINGLE', icon: '☝️' },
@@ -918,6 +924,16 @@ socket.on('game-start', (data) => {
     b.disabled = false;
   });
 
+  // Re-enable toss buttons (they stay disabled from the previous game)
+  document.querySelectorAll('#toss-choice-buttons .toss-btn').forEach(b => {
+    b.disabled = false;
+  });
+
+  // Reset toss screen heading back to default
+  document.querySelector('#toss-choice-screen .toss-panel h2').textContent = '🏆 You Won the Toss!';
+  document.getElementById('toss-loser-msg').classList.add('hidden');
+  document.getElementById('toss-choice-buttons').classList.remove('hidden');
+
   playSound('success');
   showScreen('rps');
 });
@@ -1211,6 +1227,13 @@ socket.on('match-over', (data) => {
     scoresDiv.appendChild(card);
   });
 
+  // Reset rematch UI
+  const playAgainBtn = document.getElementById('play-again-btn');
+  playAgainBtn.disabled = false;
+  playAgainBtn.querySelector('.result-btn-label').textContent = 'Play Again';
+  document.getElementById('rematch-status').classList.add('hidden');
+  document.getElementById('rematch-modal').classList.add('hidden');
+
   showScreen('result');
 
   if (isWinner) {
@@ -1223,7 +1246,72 @@ socket.on('match-over', (data) => {
 
 document.getElementById('play-again-btn').addEventListener('click', () => {
   playSound('click');
+  socket.emit('rematch-request');
+  
+  // Show waiting state
+  const btn = document.getElementById('play-again-btn');
+  btn.disabled = true;
+  btn.querySelector('.result-btn-label').textContent = 'Waiting...';
+  
+  const status = document.getElementById('rematch-status');
+  status.textContent = 'Waiting for opponent to accept...';
+  status.classList.remove('hidden');
+});
+
+document.getElementById('home-btn').addEventListener('click', () => {
+  playSound('click');
+  socket.emit('rematch-decline');
   showScreen('home');
+});
+
+// ----- Rematch events -----
+socket.on('rematch-requested', (data) => {
+  const modal = document.getElementById('rematch-modal');
+  document.getElementById('rematch-prompt-text').textContent = `${data.fromName} wants to play again!`;
+  modal.classList.remove('hidden');
+  playSound('click');
+});
+
+document.getElementById('rematch-accept-btn').addEventListener('click', () => {
+  playSound('click');
+  document.getElementById('rematch-modal').classList.add('hidden');
+  socket.emit('rematch-request');
+  
+  const status = document.getElementById('rematch-status');
+  status.textContent = 'Rematch accepted! Starting...';
+  status.classList.remove('hidden');
+});
+
+document.getElementById('rematch-reject-btn').addEventListener('click', () => {
+  playSound('click');
+  document.getElementById('rematch-modal').classList.add('hidden');
+  socket.emit('rematch-decline');
+  showScreen('home');
+});
+
+socket.on('rematch-accepted', () => {
+  // Both agreed — server will send game-start shortly
+  const status = document.getElementById('rematch-status');
+  status.textContent = '✅ Rematch accepted! Starting new game...';
+  status.classList.remove('hidden');
+  playSound('click');
+});
+
+socket.on('rematch-declined', () => {
+  const status = document.getElementById('rematch-status');
+  status.textContent = '❌ Opponent declined the rematch.';
+  status.classList.remove('hidden');
+  playSound('fail');
+  setTimeout(() => showScreen('home'), 2000);
+});
+
+socket.on('rematch-cancelled', () => {
+  document.getElementById('rematch-modal').classList.add('hidden');
+  const status = document.getElementById('rematch-status');
+  status.textContent = '❌ Opponent left the game.';
+  status.classList.remove('hidden');
+  playSound('fail');
+  setTimeout(() => showScreen('home'), 2000);
 });
 
 socket.on('game-error', (data) => {
@@ -2096,7 +2184,7 @@ socket.on('team-match-over', (data) => {
   }
 });
 
-document.getElementById('t-play-again-btn').addEventListener('click', () => {
+document.getElementById('t-home-btn').addEventListener('click', () => {
   playSound('click');
   showScreen('home');
 });
@@ -2331,8 +2419,6 @@ document.getElementById('qsp-full-settings-btn').addEventListener('click', () =>
   playSound('click');
   showScreen('settings');
 });
-
-
 
 // Close the quick settings popover when clicking outside it
 document.addEventListener('click', (e) => {
