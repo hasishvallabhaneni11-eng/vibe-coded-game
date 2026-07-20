@@ -1369,6 +1369,10 @@ io.on('connection', (socket) => {
           if (newStreak > (stats.bestStreak || 0)) {
             updates['stats.bestStreak'] = newStreak;
           }
+        } else if (winnerId === null) {
+          // Tie — count as played, reset streak, but don't count as loss
+          updates['stats.matchesTied'] = (stats.matchesTied || 0) + 1;
+          updates['stats.currentStreak'] = 0;
         } else {
           updates['stats.matchesLost'] = (stats.matchesLost || 0) + 1;
           updates['stats.currentStreak'] = 0;
@@ -1388,11 +1392,9 @@ io.on('connection', (socket) => {
     if (!room) return;
 
     // Update player stats in Firestore (async, fire-and-forget)
-    if (winnerId) {
-      updatePlayerStats(room, winnerId).catch(err => {
-        console.error('Stats update failed:', err.message);
-      });
-    }
+    updatePlayerStats(room, winnerId).catch(err => {
+      console.error('Stats update failed:', err.message);
+    });
 
     io.to(code).emit('scorecard-data', {
       mode: '1v1',

@@ -1013,10 +1013,8 @@ socket.on('force-disconnect', (data) => {
 
 // ---- Stats updated after match end ----
 socket.on('stats-updated', (data) => {
-  // Silently refresh stats if drawer is open
-  if (drawer && drawer.classList.contains('open')) {
-    loadDrawerStats();
-  }
+  // Always refresh the cached stats so they're ready when the user opens the drawer
+  loadDrawerStats();
 });
 
 socket.on('room-created', (data) => {
