@@ -1079,9 +1079,13 @@ html, body {
   animation: pulse 1.5s ease-in-out infinite;
 }
 
-.rps-btn[disabled] {
-  opacity: 0.4;
+.rps-btn[disabled]:not(.selected) {
+  opacity: 0.3;
   pointer-events: none;
+}
+.rps-btn.selected[disabled] {
+  pointer-events: none;
+  opacity: 1;
 }
 
 .rps-emoji {
@@ -1311,9 +1315,13 @@ html, body {
   color: var(--green);
 }
 
-.num-btn[disabled] {
+.num-btn[disabled]:not(.selected) {
   opacity: 0.3;
   pointer-events: none;
+}
+.num-btn.selected[disabled] {
+  pointer-events: none;
+  opacity: 1; /* Keep selected button bright! */
 }
 
 .ball-result-overlay {

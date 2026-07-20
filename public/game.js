@@ -1245,6 +1245,7 @@ document.querySelectorAll('#number-grid .num-btn').forEach(btn => {
       b.disabled = true;
     });
     btn.classList.add('selected');
+    document.getElementById('game-instruction').textContent = "Waiting for opponent...";
 
     socket.emit('play-number', { number: num });
   });
@@ -2093,6 +2094,7 @@ document.querySelectorAll('#t-number-grid .num-btn').forEach(btn => {
       b.disabled = true;
     });
     btn.classList.add('selected');
+    document.getElementById('t-game-instruction').textContent = "Waiting for opponent...";
 
     socket.emit('team-play-number', { number: num });
   });
