@@ -2,6 +2,16 @@ const express = require('express');
 const http = require('http');
 const { Server } = require('socket.io');
 const path = require('path');
+const { initializeApp, cert } = require('firebase-admin/app');
+const { getAuth } = require('firebase-admin/auth');
+const { getFirestore } = require('firebase-admin/firestore');
+
+// ---- Firebase Admin SDK ----
+initializeApp({
+  projectId: 'hand-cricket-ultimate'
+});
+const adminAuth = getAuth();
+const firestore = getFirestore();
 
 const app = express();
 const server = http.createServer(app);
@@ -15,6 +25,28 @@ const io = new Server(server, {
 app.use(express.static(path.join(__dirname, 'public')));
 
 const rooms = {};
+
+// Map userId -> socketId for single-device enforcement
+const userSessions = {};
+
+// ---- Socket auth middleware ----
+io.use(async (socket, next) => {
+  const token = socket.handshake.auth?.token;
+  if (token) {
+    try {
+      const decoded = await adminAuth.verifyIdToken(token);
+      socket.userId = decoded.uid;
+      socket.userEmail = decoded.email || null;
+      socket.userDisplayName = decoded.name || 'Player';
+    } catch (err) {
+      console.log('Auth token verification failed:', err.message);
+      socket.userId = 'guest_' + socket.id;
+    }
+  } else {
+    socket.userId = 'guest_' + socket.id;
+  }
+  next();
+});
 
 function generateRoomCode() {
   const chars = 'ABCDEFGHJKLMNPQRSTUVWXYZ23456789';
@@ -191,6 +223,9 @@ function teamStartBallTimer(code) {
 
   let timeLeft = 12;
   io.to(code).emit('team-ball-timer', { time: timeLeft });
+
+  // Trigger bot auto-play if bot is batting or bowling
+  if (room.hasBot) teamBotAutoPlay(code);
 
   room.ballTimer = setInterval(() => {
     timeLeft--;
@@ -436,7 +471,152 @@ function teamCleanupRoom(code) {
   if (room.ballTimer) clearInterval(room.ballTimer);
   if (room.toss && room.toss.timer) clearInterval(room.toss.timer);
   if (room.lobbyTimerInterval) clearInterval(room.lobbyTimerInterval);
+
+  // Keep room alive for play-again instead of deleting
+  room.phase = 'finished';
+  room.teamRematchAccepted = {};
+  room.teamRematchTimer = null;
+
+  // Send hostId so client knows who can start play-again
+  io.to(code).emit('team-match-finished', { hostId: room.hostId });
+
+  // Auto-cleanup after 120s if no play-again
+  room.teamRematchTimeout = setTimeout(() => {
+    if (rooms[code] && rooms[code].phase === 'finished') {
+      delete rooms[code];
+    }
+  }, 120000);
+}
+
+function teamDestroyRoom(code) {
+  const room = rooms[code];
+  if (!room) return;
+  if (room.ballTimer) clearInterval(room.ballTimer);
+  if (room.toss && room.toss.timer) clearInterval(room.toss.timer);
+  if (room.lobbyTimerInterval) clearInterval(room.lobbyTimerInterval);
+  if (room.teamRematchTimeout) clearTimeout(room.teamRematchTimeout);
+  if (room.teamRematchTimer) clearTimeout(room.teamRematchTimer);
   delete rooms[code];
+}
+
+// ---- Team rematch: reset room for a new game ----
+function resetTeamRoomForRematch(code, allAccepted) {
+  const room = rooms[code];
+  if (!room) return;
+
+  if (room.teamRematchTimeout) clearTimeout(room.teamRematchTimeout);
+  if (room.teamRematchTimer) clearTimeout(room.teamRematchTimer);
+
+  // Remove bot if present
+  room.players = room.players.filter(p => !p.isBot);
+  room.hasBot = false;
+
+  // Reset all player stats
+  room.players.forEach(p => {
+    p.score = 0;
+    p.balls = 0;
+    p.currentChoice = null;
+    p.isOut = false;
+    p.ballsBowled = 0;
+    p.runsConceded = 0;
+    p.wicketsTaken = 0;
+  });
+
+  // Reset room state
+  room.toss = null;
+  room.tossWinnerTeam = null;
+  room.battingTeam = null;
+  room.bowlingTeam = null;
+  room.innings = 1;
+  room.target = null;
+  room.teamScores = { A: { runs: 0, wickets: 0 }, B: { runs: 0, wickets: 0 } };
+  room.currentBatsmanId = null;
+  room.currentBowlerId = null;
+  room.lastBowlerId = null;
+  room.ballsInOver = 0;
+  room.overNumber = 1;
+  room.ballTimer = null;
+  room.commentary = [];
+  room.teamRematchAccepted = {};
+  room.draftTurn = null;
+
+  if (allAccepted) {
+    // All accepted — teams stay, go to match toss (with bot check)
+    const botAdded = teamAssignBotIfNeeded(code);
+    const delay = botAdded ? 4500 : 0;
+    setTimeout(() => {
+      if (!rooms[code]) return;
+      room.phase = 'match-toss';
+      teamStartToss(code, 'match', room.captains.A, room.captains.B);
+    }, delay);
+    io.to(code).emit('team-rematch-starting', {});
+  } else {
+    // Some left — go back to lobby for re-draft
+    room.phase = 'lobby';
+    // Reset teams
+    room.players.forEach(p => {
+      if (!p.isCaptain) p.team = null;
+    });
+    room.unassigned = room.players.filter(p => !p.isCaptain).map(p => p.id);
+    io.to(code).emit('team-rematch-lobby', {});
+    teamBroadcastState(code);
+  }
+}
+
+// ---- Team rematch: timer expired ----
+function teamRematchTimerExpire(code) {
+  const room = rooms[code];
+  if (!room || room.phase !== 'finished') return;
+
+  const humanPlayers = room.players.filter(p => !p.isBot);
+  const allAccepted = humanPlayers.every(p => room.teamRematchAccepted[p.id]);
+
+  if (allAccepted) {
+    resetTeamRoomForRematch(code, true);
+    return;
+  }
+
+  // Remove players who didn't accept
+  const nonAccepted = humanPlayers.filter(p => !room.teamRematchAccepted[p.id]);
+  nonAccepted.forEach(p => {
+    io.to(p.id).emit('team-rematch-kicked', { reason: 'You did not accept in time.' });
+    const sock = io.sockets.sockets.get(p.id);
+    if (sock) {
+      sock.leave(code);
+      sock.roomCode = null;
+    }
+  });
+  room.players = room.players.filter(p => room.teamRematchAccepted[p.id] || p.isBot);
+
+  // Reassign captains if needed
+  ['A', 'B'].forEach(team => {
+    const captainId = room.captains[team];
+    if (!room.players.find(p => p.id === captainId)) {
+      const teammates = room.players.filter(p => p.team === team && !p.isBot);
+      if (teammates.length > 0) {
+        const newCap = teammates[Math.floor(Math.random() * teammates.length)];
+        newCap.isCaptain = true;
+        room.captains[team] = newCap.id;
+        teamAddCommentary(code, `👑 ${newCap.name} is now Team ${team}'s captain.`);
+      }
+    }
+  });
+
+  // Update hostId if host was removed
+  if (!room.players.find(p => p.id === room.hostId)) {
+    const newHost = room.players.find(p => !p.isBot);
+    if (newHost) room.hostId = newHost.id;
+  }
+
+  // Check if enough players remain (need at least 2 non-bot)
+  const remaining = room.players.filter(p => !p.isBot);
+  if (remaining.length < 2) {
+    io.to(code).emit('team-game-error', { message: 'Not enough players to continue.' });
+    teamDestroyRoom(code);
+    return;
+  }
+
+  resetTeamRoomForRematch(code, false);
 }
 
 function teamHandleDisconnect(code, playerId) {
@@ -476,9 +656,129 @@ function teamHandleDisconnect(code, playerId) {
     return;
   }
 
+  // Handle disconnect during play-again vote
+  if (room.phase === 'finished') {
+    room.players = room.players.filter(p => p.id !== playerId);
+    if (player.isCaptain && player.team) {
+      const teammates = room.players.filter(p => p.team === player.team && !p.isBot);
+      if (teammates.length > 0) {
+        const newCap = teammates[Math.floor(Math.random() * teammates.length)];
+        newCap.isCaptain = true;
+        room.captains[player.team] = newCap.id;
+      }
+    }
+    if (room.hostId === playerId) {
+      const newHost = room.players.find(p => !p.isBot);
+      if (newHost) room.hostId = newHost.id;
+    }
+    const remaining = room.players.filter(p => !p.isBot);
+    if (remaining.length < 2) {
+      teamDestroyRoom(code);
+      return;
+    }
+    // Check if all remaining accepted
+    const humanPlayers = room.players.filter(p => !p.isBot);
+    const allAccepted = humanPlayers.every(p => room.teamRematchAccepted && room.teamRematchAccepted[p.id]);
+    if (allAccepted && room.teamRematchTimer) {
+      clearTimeout(room.teamRematchTimer);
+      room.teamRematchTimer = null;
+      resetTeamRoomForRematch(code, true);
+    }
+    return;
+  }
+
   if (room.toss && room.toss.timer) clearInterval(room.toss.timer);
   io.to(code).emit('team-game-error', { message: `${player.name} disconnected. Match ended.` });
-  teamCleanupRoom(code);
+  teamDestroyRoom(code);
+}
+
+// ---- Bot: Check if teams are unequal and assign bot ----
+// Returns true if bot was added (so callers can add delay)
+function teamAssignBotIfNeeded(code) {
+  const room = rooms[code];
+  if (!room) return false;
+
+  const teamA = room.players.filter(p => p.team === 'A');
+  const teamB = room.players.filter(p => p.team === 'B');
+
+  if (teamA.length === teamB.length) return false; // Equal teams, no bot needed
+
+  const smallerTeam = teamA.length < teamB.length ? 'A' : 'B';
+
+  // Create bot player
+  const bot = {
+    id: 'bot_ultimate',
+    name: 'The Ultimate Bot',
+    isBot: true,
+    team: smallerTeam,
+    isCaptain: false,
+    score: 0,
+    balls: 0,
+    wicketsTaken: 0,
+    isOut: false,
+    currentChoice: null,
+    ballsBowled: 0,
+    runsConceded: 0
+  };
+
+  room.players.push(bot);
+  room.hasBot = true;
+
+  teamAddCommentary(code, `🤖 The Ultimate Bot joins Team ${smallerTeam}!`);
+  // Delay the announcement so it doesn't overlap with draft UI
+  setTimeout(() => {
+    if (!rooms[code]) return;
+    io.to(code).emit('team-bot-assigned', { team: smallerTeam, botName: 'The Ultimate Bot' });
+    teamBroadcastState(code);
+  }, 1500);
+  return true;
+}
+
+// ---- Bot: Auto-play logic with weighted random ----
+function teamBotAutoPlay(code) {
+  const room = rooms[code];
+  if (!room || !room.hasBot) return;
+
+  const botPlayer = room.players.find(p => p.id === 'bot_ultimate');
+  if (!botPlayer) return;
+
+  const isBatting = room.currentBatsmanId === 'bot_ultimate';
+  const isBowling = room.currentBowlerId === 'bot_ultimate';
+
+  if (!isBatting && !isBowling) return;
+  if (botPlayer.currentChoice) return; // Already chose
+
+  // Weighted random: favor 2-4 for realism
+  const weights = [5, 20, 25, 25, 15, 10]; // 1-6
+  const total = weights.reduce((a, b) => a + b, 0);
+  let r = Math.random() * total;
+  let choice = 1;
+  for (let i = 0; i < weights.length; i++) {
+    r -= weights[i];
+    if (r <= 0) { choice = i + 1; break; }
+  }
+
+  // Delay to feel natural (1-2s)
+  const delay = 1000 + Math.random() * 1000;
+  setTimeout(() => {
+    if (!rooms[code] || room.phase !== 'playing') return;
+    if (botPlayer.currentChoice) return;
+
+    botPlayer.currentChoice = choice;
+
+    const batsman = room.players.find(p => p.id === room.currentBatsmanId);
+    const bowler = room.players.find(p => p.id === room.currentBowlerId);
+
+    if (batsman.currentChoice && bowler.currentChoice) {
+      teamResolveBall(code);
+    } else {
+      // Notify the other player that bot locked in
+      const otherId = isBatting ? room.currentBowlerId : room.currentBatsmanId;
+      if (otherId !== 'bot_ultimate') {
+        io.to(otherId).emit('team-opponent-locked', {});
+      }
+    }
+  }, delay);
 }
 
 function teamStartGame(code) {
@@ -494,13 +794,33 @@ function teamStartGame(code) {
     room.phase = 'draft-toss';
     teamStartToss(code, 'draft', room.captains.A, room.captains.B);
   } else {
-    room.phase = 'match-toss';
-    teamStartToss(code, 'match', room.captains.A, room.captains.B);
+    const botAdded = teamAssignBotIfNeeded(code);
+    const delay = botAdded ? 4500 : 0; // Give time for bot announcement
+    setTimeout(() => {
+      if (!rooms[code]) return;
+      room.phase = 'match-toss';
+      teamStartToss(code, 'match', room.captains.A, room.captains.B);
+    }, delay);
   }
 }
 
 io.on('connection', (socket) => {
-  console.log('Player connected:', socket.id);
+  console.log('Player connected:', socket.id, 'userId:', socket.userId);
+
+  // ---- Single-device enforcement ----
+  if (socket.userId && !socket.userId.startsWith('guest_')) {
+    const existingSocketId = userSessions[socket.userId];
+    if (existingSocketId && existingSocketId !== socket.id) {
+      const existingSocket = io.sockets.sockets.get(existingSocketId);
+      if (existingSocket) {
+        existingSocket.emit('force-disconnect', {
+          message: 'Your account was signed in on another device.'
+        });
+        existingSocket.disconnect(true);
+      }
+    }
+    userSessions[socket.userId] = socket.id;
+  }
 
   socket.on('create-room', (data) => {
     let code = generateRoomCode();
@@ -512,8 +832,6 @@ io.on('connection', (socket) => {
         mode: 'team',
         phase: 'lobby',
         hostId: socket.id,
-        lobbyTimeLeft: 300,
-        lobbyTimerInterval: null,
         players: [{
           id: socket.id,
           name: data.playerName,
@@ -550,24 +868,6 @@ io.on('connection', (socket) => {
       socket.roomCode = code;
       socket.emit('room-created', { code });
       teamBroadcastState(code);
-
-      io.to(code).emit('team-lobby-timer', { time: rooms[code].lobbyTimeLeft });
-      rooms[code].lobbyTimerInterval = setInterval(() => {
-        const r = rooms[code];
-        if (!r) return;
-        r.lobbyTimeLeft--;
-        io.to(code).emit('team-lobby-timer', { time: r.lobbyTimeLeft });
-
-        if (r.lobbyTimeLeft <= 0) {
-          clearInterval(r.lobbyTimerInterval);
-          r.lobbyTimerInterval = null;
-          if (r.captains.A && r.captains.B) {
-            teamStartGame(code);
-          } else {
-            io.to(code).emit('team-lobby-timeout', {});
-          }
-        }
-      }, 1000);
       return;
     }
 
@@ -929,7 +1229,7 @@ io.on('connection', (socket) => {
             target: room.target
           }
         });
-        cleanupRoom(socket.roomCode);
+        cleanupRoom(socket.roomCode, batsman.id);
       }, 2000);
       return;
     }
@@ -1021,7 +1321,7 @@ io.on('connection', (socket) => {
 
         setTimeout(() => {
           io.to(socket.roomCode).emit('match-over', matchData);
-          cleanupRoom(socket.roomCode);
+          cleanupRoom(socket.roomCode, matchData.winnerId);
         }, 2000);
         return;
       }
@@ -1030,9 +1330,69 @@ io.on('connection', (socket) => {
     setTimeout(() => startBallTimer(socket.roomCode), 1500);
   });
 
-  function cleanupRoom(code) {
+  // ---- Update player stats in Firestore after a match ----
+  async function updatePlayerStats(room, winnerId) {
+    if (!room || room.mode !== '1v1' || room.players.length !== 2) return;
+
+    for (const player of room.players) {
+      // Find the socket for this player to get their userId
+      const playerSocket = io.sockets.sockets.get(player.id);
+      if (!playerSocket || !playerSocket.userId || playerSocket.userId.startsWith('guest_')) continue;
+
+      const uid = playerSocket.userId;
+      const isWinner = player.id === winnerId;
+      const loser = room.players.find(p => p.id !== player.id);
+
+      try {
+        const docRef = firestore.collection('users').doc(uid);
+        const doc = await docRef.get();
+        if (!doc.exists) continue;
+
+        const stats = doc.data().stats || {};
+        const updates = {
+          'stats.matchesPlayed': (stats.matchesPlayed || 0) + 1,
+          'stats.totalRuns': (stats.totalRuns || 0) + (player.score || 0),
+          'stats.totalWickets': (stats.totalWickets || 0) + (player.wicketsTaken || 0)
+        };
+
+        if ((player.score || 0) > (stats.highestScore || 0)) {
+          updates['stats.highestScore'] = player.score;
+        }
+        if ((player.wicketsTaken || 0) > (stats.bestBowling || 0)) {
+          updates['stats.bestBowling'] = player.wicketsTaken;
+        }
+
+        if (isWinner) {
+          updates['stats.matchesWon'] = (stats.matchesWon || 0) + 1;
+          const newStreak = (stats.currentStreak || 0) + 1;
+          updates['stats.currentStreak'] = newStreak;
+          if (newStreak > (stats.bestStreak || 0)) {
+            updates['stats.bestStreak'] = newStreak;
+          }
+        } else {
+          updates['stats.matchesLost'] = (stats.matchesLost || 0) + 1;
+          updates['stats.currentStreak'] = 0;
+        }
+
+        await docRef.update(updates);
+        // Notify the player that stats were updated
+        if (playerSocket) playerSocket.emit('stats-updated', { success: true });
+      } catch (err) {
+        console.error('Failed to update stats for', uid, err.message);
+      }
+    }
+  }
+
+  function cleanupRoom(code, winnerId) {
     const room = rooms[code];
     if (!room) return;
+
+    // Update player stats in Firestore (async, fire-and-forget)
+    if (winnerId) {
+      updatePlayerStats(room, winnerId).catch(err => {
+        console.error('Stats update failed:', err.message);
+      });
+    }
 
     io.to(code).emit('scorecard-data', {
       mode: '1v1',
@@ -1183,8 +1543,14 @@ io.on('connection', (socket) => {
     teamAddCommentary(socket.roomCode, `${captain.name} drafted ${player.name} to Team ${team}.`);
 
     if (room.unassigned.length === 0) {
-      room.phase = 'match-toss';
-      teamStartToss(socket.roomCode, 'match', room.captains.A, room.captains.B);
+      // Check if teams are unequal — add bot to smaller team
+      const botAdded = teamAssignBotIfNeeded(socket.roomCode);
+      const tossDelay = botAdded ? 4500 : 0;
+      setTimeout(() => {
+        if (!rooms[socket.roomCode]) return;
+        room.phase = 'match-toss';
+        teamStartToss(socket.roomCode, 'match', room.captains.A, room.captains.B);
+      }, tossDelay);
     } else {
       room.draftTurn = team === 'A' ? 'B' : 'A';
       teamBroadcastState(socket.roomCode);
@@ -1201,6 +1567,8 @@ io.on('connection', (socket) => {
 
     const newCaptain = room.players.find(p => p.id === data.newCaptainId);
     if (!newCaptain || newCaptain.team !== player.team || newCaptain.id === player.id) return;
+    // Cannot transfer captaincy to bot
+    if (newCaptain.isBot) return;
 
     player.isCaptain = false;
     newCaptain.isCaptain = true;
@@ -1217,12 +1585,97 @@ io.on('connection', (socket) => {
     if (!room || room.mode !== 'team' || room.phase !== 'lobby') return;
     if (socket.id !== room.hostId) return;
 
-    if (!room.captains.A || !room.captains.B) {
-      socket.emit('team-game-error', { message: 'Need at least 2 players to start a team battle!' });
+    if (!room.captains.A || !room.captains.B || room.players.length < 3) {
+      socket.emit('team-game-error', { message: 'Need at least 3 players for a team battle!' });
       return;
     }
 
     teamStartGame(socket.roomCode);
+  });
+
+  // ---- Team Play Again ----
+  socket.on('team-rematch-request', () => {
+    const room = rooms[socket.roomCode];
+    if (!room || room.mode !== 'team' || room.phase !== 'finished') return;
+    if (socket.id !== room.hostId) return;
+
+    // Host accepted implicitly
+    room.teamRematchAccepted[socket.id] = true;
+
+    // Emit offer to all players
+    io.to(socket.roomCode).emit('team-rematch-offer', {
+      hostName: room.players.find(p => p.id === socket.id)?.name || 'Host'
+    });
+
+    // Start 10-second timer
+    room.teamRematchTimer = setTimeout(() => {
+      teamRematchTimerExpire(socket.roomCode);
+    }, 10000);
+  });
+
+  socket.on('team-rematch-accept', () => {
+    const room = rooms[socket.roomCode];
+    if (!room || room.mode !== 'team' || room.phase !== 'finished') return;
+
+    room.teamRematchAccepted[socket.id] = true;
+
+    // Check if all human players accepted
+    const humanPlayers = room.players.filter(p => !p.isBot);
+    const allAccepted = humanPlayers.every(p => room.teamRematchAccepted[p.id]);
+
+    if (allAccepted) {
+      if (room.teamRematchTimer) { clearTimeout(room.teamRematchTimer); room.teamRematchTimer = null; }
+      resetTeamRoomForRematch(socket.roomCode, true);
+    }
+  });
+
+  socket.on('team-rematch-decline', () => {
+    const room = rooms[socket.roomCode];
+    if (!room || room.mode !== 'team' || room.phase !== 'finished') return;
+
+    const player = room.players.find(p => p.id === socket.id);
+    if (!player) return;
+
+    // Remove from room
+    io.to(socket.id).emit('team-rematch-kicked', { reason: 'You declined the rematch.' });
+    socket.leave(socket.roomCode);
+    room.players = room.players.filter(p => p.id !== socket.id);
+
+    // Reassign captain if this player was captain
+    if (player.isCaptain && player.team) {
+      const teammates = room.players.filter(p => p.team === player.team && !p.isBot);
+      if (teammates.length > 0) {
+        const newCap = teammates[Math.floor(Math.random() * teammates.length)];
+        newCap.isCaptain = true;
+        room.captains[player.team] = newCap.id;
+        teamAddCommentary(socket.roomCode, `👑 ${newCap.name} is now Team ${player.team}'s captain.`);
+      }
+    }
+
+    // Update host if needed
+    if (room.hostId === socket.id) {
+      const newHost = room.players.find(p => !p.isBot);
+      if (newHost) room.hostId = newHost.id;
+    }
+
+    socket.roomCode = null;
+
+    // Check if enough remain
+    const remaining = room.players.filter(p => !p.isBot);
+    if (remaining.length < 2) {
+      if (room.teamRematchTimer) { clearTimeout(room.teamRematchTimer); room.teamRematchTimer = null; }
+      io.to(room.code).emit('team-game-error', { message: 'Not enough players to continue.' });
+      teamDestroyRoom(room.code);
+      return;
+    }
+
+    // Check if all remaining have accepted
+    const humanPlayers = room.players.filter(p => !p.isBot);
+    const allAccepted = humanPlayers.every(p => room.teamRematchAccepted[p.id]);
+    if (allAccepted) {
+      if (room.teamRematchTimer) { clearTimeout(room.teamRematchTimer); room.teamRematchTimer = null; }
+      resetTeamRoomForRematch(room.code, true);
+    }
   });
 
   socket.on('get-scorecard', () => {
@@ -1379,6 +1832,12 @@ io.on('connection', (socket) => {
 
   socket.on('disconnect', () => {
     console.log('Player disconnected:', socket.id);
+
+    // Clean up user session mapping
+    if (socket.userId && userSessions[socket.userId] === socket.id) {
+      delete userSessions[socket.userId];
+    }
+
     const code = socket.roomCode;
     if (!code || !rooms[code]) return;
 

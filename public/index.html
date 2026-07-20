@@ -11,11 +11,17 @@
   <link rel="stylesheet" href="style.css">
 </head>
 <body>
+  <!-- App loading splash (hides auth flash on reload) -->
+  <div id="app-loader">
+    <div class="app-loader-spinner"></div>
+    <p class="app-loader-text">Loading...</p>
+  </div>
   <canvas id="particle-canvas"></canvas>
   <div id="app">
 
-    <div id="name-screen" class="screen active">
-      <div class="glass-panel name-panel animate-in">
+    <!-- AUTH SCREEN (replaces old name-screen) -->
+    <div id="auth-screen" class="screen active">
+      <div class="glass-panel auth-panel animate-in">
         <div class="logo-container">
           <div class="logo-glow"></div>
           <h1 class="game-title">
@@ -23,16 +29,52 @@
             <span class="title-cricket">CRICKET</span>
           </h1>
           <p class="title-sub">ULTIMATE</p>
-          <span class="version-badge">v0.9</span>
+          <span class="version-badge">v1.1</span>
         </div>
-        <div class="input-group">
-          <label for="player-name-input">What should we call you, champion?</label>
-          <input type="text" id="player-name-input" placeholder="Enter your name..." maxlength="15" autocomplete="off">
+
+        <!-- Main auth buttons -->
+        <div id="auth-main-buttons" class="auth-buttons">
+          <button id="auth-google-btn" class="btn auth-btn auth-btn-google">
+            <svg class="auth-btn-icon" viewBox="0 0 24 24" width="20" height="20">
+              <path d="M22.56 12.25c0-.78-.07-1.53-.2-2.25H12v4.26h5.92a5.06 5.06 0 01-2.2 3.32v2.77h3.57c2.08-1.92 3.28-4.74 3.28-8.1z" fill="#4285F4"/>
+              <path d="M12 23c2.97 0 5.46-.98 7.28-2.66l-3.57-2.77c-.98.66-2.23 1.06-3.71 1.06-2.86 0-5.29-1.93-6.16-4.53H2.18v2.84C3.99 20.53 7.7 23 12 23z" fill="#34A853"/>
+              <path d="M5.84 14.09c-.22-.66-.35-1.36-.35-2.09s.13-1.43.35-2.09V7.07H2.18C1.43 8.55 1 10.22 1 12s.43 3.45 1.18 4.93l2.85-2.22.81-.62z" fill="#FBBC05"/>
+              <path d="M12 5.38c1.62 0 3.06.56 4.21 1.64l3.15-3.15C17.45 2.09 14.97 1 12 1 7.7 1 3.99 3.47 2.18 7.07l3.66 2.84c.87-2.6 3.3-4.53 6.16-4.53z" fill="#EA4335"/>
+            </svg>
+            <span>Continue with Google</span>
+          </button>
+
+
+          <button id="auth-guest-btn" class="btn auth-btn auth-btn-guest">
+            <span class="auth-btn-icon">👤</span>
+            <span>Play as Guest</span>
+          </button>
         </div>
-        <button id="name-submit-btn" class="btn btn-primary btn-large">
-          <span>LET'S GO</span>
-          <div class="btn-shine"></div>
-        </button>
+
+        <!-- Guest name input (hidden by default) -->
+        <div id="auth-guest-panel" class="auth-guest-panel hidden">
+          <button id="auth-guest-back" class="auth-email-back-btn">← Back</button>
+          <div class="input-group">
+            <label for="guest-name-input">What should we call you, champion?</label>
+            <input type="text" id="guest-name-input" placeholder="Enter your name..." maxlength="15" autocomplete="off">
+          </div>
+          <button id="guest-submit-btn" class="btn btn-primary btn-large">
+            <span>LET'S GO</span>
+            <div class="btn-shine"></div>
+          </button>
+
+        </div>
+
+        <!-- Error message -->
+        <p id="auth-error-msg" class="auth-error hidden"></p>
+
+        <!-- Loading spinner -->
+        <div id="auth-loading" class="auth-loading hidden">
+          <div class="auth-spinner"></div>
+          <p>Signing in...</p>
+        </div>
+
+
       </div>
     </div>
 
@@ -76,6 +118,106 @@
         </button>
       </div>
 
+    </div>
+
+    <!-- Stats Screen -->
+    <div id="stats-screen" class="screen">
+      <button class="back-btn" id="stats-back-btn">
+        <svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M19 12H5M12 19l-7-7 7-7"/></svg>
+      </button>
+      <div class="stats-page">
+        <h2 class="stats-page-title animate-in">📊 My Stats</h2>
+        <p class="stats-page-note hidden" id="stats-guest-note">Stats are saved locally for guest accounts.</p>
+
+        <!-- Overview Row -->
+        <div class="stats-section animate-in" style="--delay: 0.1s">
+          <div class="stats-row stats-overview">
+            <div class="stats-card stats-card-accent">
+              <span class="stats-card-icon">🏏</span>
+              <span class="stats-card-value" id="sp-matches">0</span>
+              <span class="stats-card-label">Matches</span>
+            </div>
+            <div class="stats-card stats-card-accent">
+              <span class="stats-card-icon">🏆</span>
+              <span class="stats-card-value" id="sp-wins">0</span>
+              <span class="stats-card-label">Wins</span>
+            </div>
+            <div class="stats-card stats-card-accent">
+              <span class="stats-card-icon">📈</span>
+              <span class="stats-card-value" id="sp-winrate">0%</span>
+              <span class="stats-card-label">Win Rate</span>
+            </div>
+          </div>
+        </div>
+
+        <!-- Batting Section -->
+        <div class="stats-section animate-in" style="--delay: 0.2s">
+          <h3 class="stats-section-title">🏏 Batting</h3>
+          <div class="stats-row">
+            <div class="stats-card">
+              <span class="stats-card-value" id="sp-runs">0</span>
+              <span class="stats-card-label">Total Runs</span>
+            </div>
+            <div class="stats-card">
+              <span class="stats-card-value" id="sp-highest">0</span>
+              <span class="stats-card-label">Highest Score</span>
+            </div>
+          </div>
+        </div>
+
+        <!-- Bowling Section -->
+        <div class="stats-section animate-in" style="--delay: 0.3s">
+          <h3 class="stats-section-title">🎯 Bowling</h3>
+          <div class="stats-row">
+            <div class="stats-card">
+              <span class="stats-card-value" id="sp-wickets">0</span>
+              <span class="stats-card-label">Total Wickets</span>
+            </div>
+            <div class="stats-card">
+              <span class="stats-card-value" id="sp-best-bowling">0</span>
+              <span class="stats-card-label">Best Bowling</span>
+            </div>
+          </div>
+        </div>
+
+        <!-- Streaks Section -->
+        <div class="stats-section animate-in" style="--delay: 0.4s">
+          <h3 class="stats-section-title">🔥 Streaks</h3>
+          <div class="stats-row">
+            <div class="stats-card">
+              <span class="stats-card-value" id="sp-streak">0</span>
+              <span class="stats-card-label">Current Streak</span>
+            </div>
+            <div class="stats-card">
+              <span class="stats-card-value" id="sp-best-streak">0</span>
+              <span class="stats-card-label">Best Streak</span>
+            </div>
+          </div>
+        </div>
+      </div>
+    </div>
+
+    <!-- Feedback Screen -->
+    <div id="feedback-screen" class="screen">
+      <button class="back-btn" id="feedback-back-btn">
+        <svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M19 12H5M12 19l-7-7 7-7"/></svg>
+      </button>
+      <div class="feedback-page animate-in">
+        <h2 class="feedback-title">💬 Send Feedback</h2>
+        <p class="feedback-subtitle">Help us improve Hand Cricket! Share your thoughts, report bugs, or suggest new features.</p>
+        <div class="feedback-form">
+          <div class="input-group">
+            <label for="feedback-textarea">Your Feedback</label>
+            <textarea id="feedback-textarea" rows="6" placeholder="Tell us what you think..." maxlength="1000"></textarea>
+            <span class="feedback-char-count"><span id="feedback-char-current">0</span>/1000</span>
+          </div>
+          <button class="btn btn-primary" id="feedback-submit-btn">
+            <span>Submit Feedback</span>
+            <div class="btn-shine"></div>
+          </button>
+          <p class="feedback-success hidden" id="feedback-success-msg">✅ Thanks! Your feedback has been submitted.</p>
+        </div>
+      </div>
     </div>
 
     <div id="room-screen" class="screen">
@@ -172,10 +314,6 @@
         </div>
 
         <div class="lobby-start-row" id="lobby-start-row">
-          <div class="lobby-timer">
-            <span class="lobby-timer-label">Auto-start in</span>
-            <span class="lobby-timer-value" id="lobby-timer-value">5:00</span>
-          </div>
           <button class="btn btn-primary btn-large" id="lobby-start-btn" disabled>
             <span>START GAME</span>
             <div class="btn-shine"></div>
@@ -575,10 +713,15 @@
         <p id="t-result-message" class="result-message"></p>
         <div class="team-final-scores" id="t-final-team-scores"></div>
         <div class="final-scores" id="t-final-player-scores"></div>
+        <button id="t-play-again-btn" class="btn btn-primary btn-large result-btn-primary hidden">
+          <span class="result-btn-icon">🔄</span>
+          <span class="result-btn-label">Play Again</span>
+        </button>
         <button id="t-home-btn" class="btn btn-secondary btn-large result-btn-secondary">
           <span class="result-btn-icon">🏠</span>
           <span class="result-btn-label">Home</span>
         </button>
+        <p id="t-rematch-status" class="rematch-status hidden"></p>
         <button class="scorecard-btn" id="t-result-scorecard-btn">
           <span class="scorecard-text">SCORECARD</span>
           <span class="scorecard-pulse"></span>
@@ -608,7 +751,7 @@
         </div>
 
         <div class="setting-item credits">
-          <p>Hand Cricket Ultimate v0.9</p>
+          <p>Hand Cricket Ultimate v1.1</p>
           <p class="credit-sub">Built with ❤️</p>
         </div>
       </div>
@@ -673,32 +816,167 @@
       </div>
     </div>
 
-    <!-- Global settings (top-right, every screen) -->
-    <button class="global-settings-btn" id="global-settings-btn" title="Settings">
-      <svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
-        <circle cx="12" cy="12" r="3"></circle>
-        <path d="M12 1v2M12 21v2M4.22 4.22l1.42 1.42M18.36 18.36l1.42 1.42M1 12h2M21 12h2M4.22 19.78l1.42-1.42M18.36 5.64l1.42-1.42"></path>
+    <!-- Hamburger Menu Button (top-left, replaces gear icon) -->
+    <button class="hamburger-btn hidden" id="hamburger-btn" title="Menu">
+      <svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round">
+        <line x1="3" y1="6" x2="21" y2="6"/>
+        <line x1="3" y1="12" x2="21" y2="12"/>
+        <line x1="3" y1="18" x2="21" y2="18"/>
       </svg>
     </button>
 
-    <div id="quick-settings-panel" class="quick-settings-panel hidden">
-      <div class="chat-header">
-        <span>⚙️ Quick Settings</span>
-        <button class="chat-close-btn" id="qsp-close-btn">✕</button>
+    <!-- Slide-out Drawer -->
+    <div class="drawer-overlay hidden" id="drawer-overlay"></div>
+    <div class="drawer" id="drawer">
+      <div class="drawer-header">
+        <h3>☰ MENU</h3>
+        <button class="drawer-close-btn" id="drawer-close-btn">✕</button>
       </div>
-      <div class="setting-item">
-        <label>Sound Effects</label>
-        <div class="toggle-switch">
-          <input type="checkbox" id="sound-toggle-quick">
-          <span class="toggle-slider"></span>
+
+      <!-- Profile Section -->
+      <div class="drawer-section">
+        <div class="drawer-section-title">👤 Profile</div>
+        <div class="drawer-profile-card">
+          <div class="drawer-avatar" id="drawer-avatar">👤</div>
+          <div class="drawer-profile-info">
+            <span class="drawer-display-name" id="drawer-display-name">Player</span>
+            <span class="drawer-email" id="drawer-email"></span>
+            <span class="drawer-provider-badge" id="drawer-provider-badge"></span>
+          </div>
+        </div>
+        <div class="drawer-edit-name" id="drawer-edit-name-section">
+          <div class="input-group" style="margin-bottom: 8px">
+            <input type="text" id="drawer-name-input" placeholder="New name..." maxlength="15" autocomplete="off">
+          </div>
+          <button class="btn btn-ghost btn-small" id="drawer-save-name-btn">Save Name</button>
         </div>
       </div>
 
-      <button class="btn btn-ghost btn-small" id="qsp-full-settings-btn">More Settings</button>
+      <!-- Navigation Section -->
+      <div class="drawer-section">
+        <div class="drawer-section-title">📋 Menu</div>
+        <button class="drawer-menu-btn" id="drawer-stats-btn">
+          <span class="drawer-menu-icon">📊</span>
+          <span>My Stats</span>
+          <span class="drawer-menu-arrow">→</span>
+        </button>
+        <button class="drawer-menu-btn" id="drawer-feedback-btn">
+          <span class="drawer-menu-icon">💬</span>
+          <span>Feedback</span>
+          <span class="drawer-menu-arrow">→</span>
+        </button>
+      </div>
+
+      <!-- Sound Toggle -->
+      <div class="drawer-section">
+        <div class="drawer-row">
+          <span>🔊 Sound Effects</span>
+          <div class="toggle-switch">
+            <input type="checkbox" id="drawer-sound-toggle">
+            <span class="toggle-slider"></span>
+          </div>
+        </div>
+      </div>
+
+      <!-- Sign Out / Sign Up -->
+      <div class="drawer-section">
+        <button class="btn auth-btn auth-btn-google drawer-upgrade-btn hidden" id="drawer-upgrade-btn">
+          <svg class="auth-btn-icon" viewBox="0 0 24 24" width="18" height="18">
+            <path d="M22.56 12.25c0-.78-.07-1.53-.2-2.25H12v4.26h5.92a5.06 5.06 0 01-2.2 3.32v2.77h3.57c2.08-1.92 3.28-4.74 3.28-8.1z" fill="#4285F4"/>
+            <path d="M12 23c2.97 0 5.46-.98 7.28-2.66l-3.57-2.77c-.98.66-2.23 1.06-3.71 1.06-2.86 0-5.29-1.93-6.16-4.53H2.18v2.84C3.99 20.53 7.7 23 12 23z" fill="#34A853"/>
+            <path d="M5.84 14.09c-.22-.66-.35-1.36-.35-2.09s.13-1.43.35-2.09V7.07H2.18C1.43 8.55 1 10.22 1 12s.43 3.45 1.18 4.93l2.85-2.22.81-.62z" fill="#FBBC05"/>
+            <path d="M12 5.38c1.62 0 3.06.56 4.21 1.64l3.15-3.15C17.45 2.09 14.97 1 12 1 7.7 1 3.99 3.47 2.18 7.07l3.66 2.84c.87-2.6 3.3-4.53 6.16-4.53z" fill="#EA4335"/>
+          </svg>
+          <span>Sign up with Google</span>
+        </button>
+        <button class="btn btn-ghost drawer-signout-btn hidden" id="drawer-signout-btn">🚪 Sign Out</button>
+      </div>
+    </div>
+
+    <!-- Force disconnect modal -->
+    <div class="modal hidden" id="force-disconnect-modal">
+      <div class="modal-content">
+        <h3>⚠️ Session Ended</h3>
+        <p id="force-disconnect-msg">Your account was signed in on another device.</p>
+        <button class="btn btn-primary" id="force-disconnect-ok-btn">
+          <span>OK</span>
+        </button>
+      </div>
+    </div>
+
+    <!-- Stats choice modal (guest → Google upgrade) -->
+    <div class="modal hidden" id="stats-choice-modal">
+      <div class="modal-content">
+        <h3>🔄 Account Found!</h3>
+        <p>This Google account already has saved stats. Which stats do you want to keep?</p>
+        <div class="stats-choice-preview">
+          <div class="stats-choice-card" id="stats-choice-current">
+            <h4>📱 Current Session</h4>
+            <div class="stats-choice-details">
+              <span>Matches: <b id="choice-current-matches">0</b></span>
+              <span>Wins: <b id="choice-current-wins">0</b></span>
+              <span>Runs: <b id="choice-current-runs">0</b></span>
+            </div>
+            <button class="btn btn-primary btn-small" id="stats-choice-current-btn">
+              <span>Keep Current</span>
+            </button>
+          </div>
+          <div class="stats-choice-card" id="stats-choice-previous">
+            <h4>☁️ Google Account</h4>
+            <div class="stats-choice-details">
+              <span>Matches: <b id="choice-prev-matches">0</b></span>
+              <span>Wins: <b id="choice-prev-wins">0</b></span>
+              <span>Runs: <b id="choice-prev-runs">0</b></span>
+            </div>
+            <button class="btn btn-primary btn-small" id="stats-choice-prev-btn">
+              <span>Load Previous</span>
+            </button>
+          </div>
+        </div>
+      </div>
+    </div>
+
+    <!-- Bot Announcement Overlay -->
+    <div class="bot-announcement hidden" id="bot-announcement">
+      <div class="bot-announce-content">
+        <div class="bot-announce-icon">🤖</div>
+        <h2 class="bot-announce-title" data-text="THE ULTIMATE BOT">THE ULTIMATE BOT</h2>
+        <p class="bot-announce-subtitle">Joins <span id="bot-announce-team">Team A</span>!</p>
+        <div class="bot-announce-particles"></div>
+      </div>
+    </div>
+
+    <!-- Team Rematch Modal -->
+    <div id="team-rematch-modal" class="modal hidden">
+      <div class="modal-content glass-panel animate-in">
+        <div class="modal-icon">🔄</div>
+        <h3>Play Again?</h3>
+        <p id="team-rematch-prompt">The host wants to play again!</p>
+        <div class="team-rematch-timer">
+          <span id="team-rematch-countdown">10</span>s
+        </div>
+        <div class="modal-actions">
+          <button id="team-rematch-accept-btn" class="btn btn-primary">
+            <span>✅ Accept</span>
+          </button>
+          <button id="team-rematch-decline-btn" class="btn btn-secondary">
+            <span>❌ Decline</span>
+          </button>
+        </div>
+      </div>
     </div>
 
   </div>
+
+  <!-- Firebase CDN (compat for vanilla JS) -->
+  <script src="https://www.gstatic.com/firebasejs/10.12.2/firebase-app-compat.js"></script>
+  <script src="https://www.gstatic.com/firebasejs/10.12.2/firebase-auth-compat.js"></script>
+  <script src="https://www.gstatic.com/firebasejs/10.12.2/firebase-firestore-compat.js"></script>
+
+  <!-- App scripts (order matters) -->
   <script src="/socket.io/socket.io.js"></script>
+  <script src="firebase-config.js"></script>
+  <script src="auth.js"></script>
   <script src="game.js"></script>
 </body>
 </html>

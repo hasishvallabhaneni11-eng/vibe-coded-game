@@ -1,10 +1,21 @@
+// Socket is created immediately but does NOT connect until Firebase auth resolves.
+// This lets all the existing socket.on() listeners be registered normally.
+let authToken = null;
+
 const socket = io({
   transports: ['websocket', 'polling'],
   reconnectionAttempts: 10,
   reconnectionDelay: 1000,
   reconnectionDelayMax: 5000,
-  timeout: 20000
+  timeout: 20000,
+  autoConnect: false  // <-- KEY: don't connect until auth is ready
 });
+
+function connectSocket() {
+  if (socket.connected) return;
+  socket.auth = { token: authToken };
+  socket.connect();
+}
 
 const SCORE_LABELS = {
   1: { label: 'SINGLE', icon: '☝️' },
@@ -78,7 +89,7 @@ class AudioEngine {
       }
       this.masterGain.gain.value = 0.5;
       // Only restart bg ambience on menu screens, not mid-game
-      if (!this.currentBg && (currentScreenName === 'home' || currentScreenName === 'name')) {
+      if (!this.currentBg && (currentScreenName === 'home' || currentScreenName === 'auth')) {
         this.startBgAmbience();
       }
     }
@@ -565,7 +576,7 @@ function playSound(type) {
 }
 
 const state = {
-  playerName: localStorage.getItem('hc_playerName') || '',
+  playerName: '',
   playerId: null,
   roomCode: null,
   mode: '1v1',
@@ -580,8 +591,10 @@ const state = {
 };
 
 const screens = {
-  name: document.getElementById('name-screen'),
+  auth: document.getElementById('auth-screen'),
   home: document.getElementById('home-screen'),
+  stats: document.getElementById('stats-screen'),
+  feedback: document.getElementById('feedback-screen'),
   room: document.getElementById('room-screen'),
   waiting: document.getElementById('waiting-screen'),
   join: document.getElementById('join-screen'),
@@ -619,8 +632,8 @@ function showScreen(name) {
   }
   if (state.soundEnabled && audio.initialized) {
     playSound('whoosh');
-    // Start bg ambience when reaching home or name screen (safe point — toggle has settled)
-    if ((name === 'home' || name === 'name') && !audio.currentBg) {
+    // Start bg ambience when reaching home or auth screen (safe point — toggle has settled)
+    if ((name === 'home' || name === 'auth') && !audio.currentBg) {
       audio.startBgAmbience();
     }
   }
@@ -631,6 +644,12 @@ function showScreen(name) {
   if (name !== 'teamLobby' && name !== 'teamDraft' && name !== 'teamGame' &&
       name !== 'teamToss' && name !== 'teamTossChoice') {
     document.getElementById('transfer-captain-btn').classList.add('hidden');
+  }
+
+  // Show hamburger menu only on home screen
+  const hamburger = document.getElementById('hamburger-btn');
+  if (hamburger) {
+    hamburger.classList.toggle('hidden', name !== 'home');
   }
 }
 
@@ -736,34 +755,137 @@ function spawnConfetti(containerId = 'confetti-container') {
   setTimeout(() => { container.innerHTML = ''; }, 6000);
 }
 
-if (state.playerName) {
-  state.playerName = capitalizeFirst(state.playerName);
-  localStorage.setItem('hc_playerName', state.playerName);
-  showScreen('home');
-  document.getElementById('player-display-name').textContent = state.playerName;
-  document.getElementById('settings-name-input').value = state.playerName;
-} else {
-  showScreen('name');
+// ===================================================================
+// ===== AUTH FLOW ====================================================
+// ===================================================================
+showScreen('auth');  // Always start on auth screen
+
+function showAuthLoading(show) {
+  document.getElementById('auth-loading').classList.toggle('hidden', !show);
+  document.getElementById('auth-main-buttons').classList.toggle('hidden', show);
+  document.getElementById('auth-guest-panel').classList.add('hidden');
 }
 
-document.getElementById('name-submit-btn').addEventListener('click', () => {
-  const name = capitalizeFirst(document.getElementById('player-name-input').value.trim());
-  if (!name) {
-    document.getElementById('player-name-input').style.borderColor = 'var(--red)';
-    document.getElementById('player-name-input').style.animation = 'shakeX 0.5s ease';
-    setTimeout(() => { document.getElementById('player-name-input').style.animation = ''; }, 500);
-    return;
-  }
-  state.playerName = name;
-  localStorage.setItem('hc_playerName', name);
-  document.getElementById('player-display-name').textContent = name;
-  document.getElementById('settings-name-input').value = name;
+function resetAuthScreen() {
+  document.getElementById('auth-loading').classList.add('hidden');
+  document.getElementById('auth-guest-panel').classList.add('hidden');
+  document.getElementById('auth-main-buttons').classList.remove('hidden');
+  hideAuthError();
+
+  // Clear all form fields
+  const fields = ['guest-name-input'];
+  fields.forEach(id => {
+    const el = document.getElementById(id);
+    if (el) el.value = '';
+  });
+}
+
+function showAuthError(msg) {
+  const el = document.getElementById('auth-error-msg');
+  if (!el) return;
+  el.textContent = msg;
+  el.classList.remove('hidden');
+}
+function hideAuthError() {
+  const el = document.getElementById('auth-error-msg');
+  if (el) el.classList.add('hidden');
+}
+
+async function onAuthSuccess(user) {
+  state.playerName = user.displayName || localStorage.getItem('hc_guest_name') || 'Player';
+  authToken = await HCAuth.getIdToken();
+
+  document.getElementById('player-display-name').textContent = state.playerName;
+
+  // Update drawer profile
+  updateDrawerProfile();
+
+  connectSocket();
   playSound('success');
   showScreen('home');
+}
+
+// ---- Listen for auto-login (returning user) ----
+let appLoaderHidden = false;
+function hideAppLoader() {
+  if (appLoaderHidden) return;
+  appLoaderHidden = true;
+  const loader = document.getElementById('app-loader');
+  if (loader) {
+    loader.classList.add('fade-out');
+    setTimeout(() => loader.remove(), 500);
+  }
+}
+// Fallback: hide loader after 3s even if Firebase is slow
+setTimeout(hideAppLoader, 3000);
+
+HCAuth.onAuthStateChanged(async (user) => {
+  if (user) {
+    await onAuthSuccess(user);
+  } else {
+    // Force-close drawer immediately
+    const d = document.getElementById('drawer');
+    const o = document.getElementById('drawer-overlay');
+    if (d) d.classList.remove('open');
+    if (o) { o.classList.remove('visible'); o.classList.add('hidden'); }
+
+    resetAuthScreen();
+    showScreen('auth');
+  }
+  hideAppLoader();
 });
 
-document.getElementById('player-name-input').addEventListener('keydown', (e) => {
-  if (e.key === 'Enter') document.getElementById('name-submit-btn').click();
+// ---- Google Sign-In ----
+document.getElementById('auth-google-btn').addEventListener('click', async () => {
+  showAuthLoading(true);
+  hideAuthError();
+  const result = await HCAuth.signInWithGoogle();
+  if (!result.success) {
+    showAuthLoading(false);
+    if (result.error !== 'Sign-in cancelled.') showAuthError(result.error);
+  }
+  // onAuthStateChanged handles the success case
+});
+
+
+
+// ---- Guest btn ----
+document.getElementById('auth-guest-btn').addEventListener('click', () => {
+  document.getElementById('auth-main-buttons').classList.add('hidden');
+  document.getElementById('auth-guest-panel').classList.remove('hidden');
+  hideAuthError();
+  playSound('click');
+});
+
+// ---- Guest back ----
+document.getElementById('auth-guest-back').addEventListener('click', () => {
+  document.getElementById('auth-guest-panel').classList.add('hidden');
+  document.getElementById('auth-main-buttons').classList.remove('hidden');
+  hideAuthError();
+  playSound('click');
+});
+
+// ---- Guest submit ----
+document.getElementById('guest-submit-btn').addEventListener('click', async () => {
+  const name = capitalizeFirst(document.getElementById('guest-name-input').value.trim());
+  if (!name) {
+    document.getElementById('guest-name-input').style.borderColor = 'var(--red)';
+    document.getElementById('guest-name-input').style.animation = 'shakeX 0.5s ease';
+    setTimeout(() => { document.getElementById('guest-name-input').style.animation = ''; }, 500);
+    return;
+  }
+  localStorage.setItem('hc_guest_name', name);
+  showAuthLoading(true);
+  const result = await HCAuth.signInAsGuest(name);
+  if (!result.success) {
+    showAuthLoading(false);
+    document.getElementById('auth-guest-panel').classList.remove('hidden');
+    document.getElementById('auth-main-buttons').classList.add('hidden');
+    showAuthError(result.error);
+  }
+});
+document.getElementById('guest-name-input').addEventListener('keydown', (e) => {
+  if (e.key === 'Enter') document.getElementById('guest-submit-btn').click();
 });
 
 document.getElementById('mode-1v1-btn').addEventListener('click', () => {
@@ -785,13 +907,17 @@ document.getElementById('settings-back-btn').addEventListener('click', () => {
   showScreen('home');
 });
 
-document.getElementById('settings-save-name').addEventListener('click', () => {
+document.getElementById('settings-save-name').addEventListener('click', async () => {
   const name = capitalizeFirst(document.getElementById('settings-name-input').value.trim());
   if (name) {
     state.playerName = name;
-    localStorage.setItem('hc_playerName', name);
     document.getElementById('player-display-name').textContent = name;
     playSound('success');
+    // Sync to Firebase if logged in (non-guest)
+    if (!HCAuth.isGuest()) {
+      await HCAuth.updateDisplayName(name);
+    }
+    updateDrawerProfile();
   }
 });
 
@@ -804,15 +930,16 @@ document.getElementById('sound-toggle').addEventListener('change', (e) => {
   if (!audio.initialized && e.target.checked) audio.init();
   audio.setMuted(!e.target.checked);
 
-  // Keep quick-settings toggle in sync
-  const q = document.getElementById('sound-toggle-quick');
-  if (q) q.checked = e.target.checked;
+  // Keep drawer toggle in sync
+  const d = document.getElementById('drawer-sound-toggle');
+  if (d) d.checked = e.target.checked;
 });
 
-const soundToggleQuick = document.getElementById('sound-toggle-quick');
-if (soundToggleQuick) {
-  soundToggleQuick.checked = state.soundEnabled;
-  soundToggleQuick.addEventListener('change', (e) => {
+// Drawer sound toggle
+const drawerSoundToggle = document.getElementById('drawer-sound-toggle');
+if (drawerSoundToggle) {
+  drawerSoundToggle.checked = state.soundEnabled;
+  drawerSoundToggle.addEventListener('change', (e) => {
     state.soundEnabled = e.target.checked;
     localStorage.setItem('hc_sound', e.target.checked);
     document.getElementById('sound-toggle').checked = e.target.checked;
@@ -877,6 +1004,19 @@ document.getElementById('join-submit-btn').addEventListener('click', () => {
 
 document.getElementById('join-code-input').addEventListener('keydown', (e) => {
   if (e.key === 'Enter') document.getElementById('join-submit-btn').click();
+});
+
+// ---- Force disconnect (single-device enforcement) ----
+socket.on('force-disconnect', (data) => {
+  handleForceDisconnect(data?.message);
+});
+
+// ---- Stats updated after match end ----
+socket.on('stats-updated', (data) => {
+  // Silently refresh stats if drawer is open
+  if (drawer && drawer.classList.contains('open')) {
+    loadDrawerStats();
+  }
 });
 
 socket.on('room-created', (data) => {
@@ -1626,20 +1766,7 @@ document.getElementById('lobby-start-btn').addEventListener('click', () => {
   socket.emit('team-start-game');
 });
 
-function formatLobbyTime(seconds) {
-  const s = Math.max(0, seconds);
-  const m = Math.floor(s / 60);
-  const r = s % 60;
-  return `${m}:${r.toString().padStart(2, '0')}`;
-}
-
-socket.on('team-lobby-timer', (data) => {
-  document.getElementById('lobby-timer-value').textContent = formatLobbyTime(data.time);
-});
-
-socket.on('team-lobby-timeout', () => {
-  document.getElementById('lobby-timer-value').textContent = "Time's up";
-});
+// (lobby timer removed — manual start only)
 
 // ----- Lobby rendering -----
 function renderLobby(data) {
@@ -2184,10 +2311,6 @@ socket.on('team-match-over', (data) => {
   document.getElementById('transfer-captain-btn').classList.add('hidden');
   showScreen('teamResult');
 
-  if (myTeam === null) {
-    // shouldn't happen post-draft, but guard anyway
-  }
-
   if (isWinner) {
     spawnConfetti('t-confetti-container');
     playSound('win');
@@ -2196,8 +2319,107 @@ socket.on('team-match-over', (data) => {
   }
 });
 
+// ---- Team match finished: show play-again for host ----
+socket.on('team-match-finished', (data) => {
+  const playAgainBtn = document.getElementById('t-play-again-btn');
+  const statusEl = document.getElementById('t-rematch-status');
+  playAgainBtn.disabled = false;
+  playAgainBtn.querySelector('.result-btn-label').textContent = 'Play Again';
+  statusEl.classList.add('hidden');
+
+  if (data.hostId === socket.id) {
+    playAgainBtn.classList.remove('hidden');
+  } else {
+    playAgainBtn.classList.add('hidden');
+  }
+});
+
+// ---- Host clicks Play Again ----
+document.getElementById('t-play-again-btn').addEventListener('click', () => {
+  playSound('click');
+  socket.emit('team-rematch-request');
+
+  const btn = document.getElementById('t-play-again-btn');
+  btn.disabled = true;
+  btn.querySelector('.result-btn-label').textContent = 'Waiting...';
+
+  const status = document.getElementById('t-rematch-status');
+  status.textContent = 'Waiting for all players to accept...';
+  status.classList.remove('hidden');
+});
+
+// ---- Team rematch offer received (all players see this) ----
+let teamRematchInterval = null;
+socket.on('team-rematch-offer', (data) => {
+  const modal = document.getElementById('team-rematch-modal');
+  document.getElementById('team-rematch-prompt').textContent = `${data.hostName} wants to play again!`;
+
+  // Start countdown
+  let timeLeft = 10;
+  document.getElementById('team-rematch-countdown').textContent = timeLeft;
+
+  if (teamRematchInterval) clearInterval(teamRematchInterval);
+  teamRematchInterval = setInterval(() => {
+    timeLeft--;
+    document.getElementById('team-rematch-countdown').textContent = Math.max(0, timeLeft);
+    if (timeLeft <= 0) {
+      clearInterval(teamRematchInterval);
+      teamRematchInterval = null;
+      modal.classList.add('hidden');
+      // Server handles timeout
+    }
+  }, 1000);
+
+  modal.classList.remove('hidden');
+  playSound('click');
+});
+
+// ---- Accept rematch ----
+document.getElementById('team-rematch-accept-btn').addEventListener('click', () => {
+  playSound('click');
+  socket.emit('team-rematch-accept');
+  document.getElementById('team-rematch-modal').classList.add('hidden');
+  if (teamRematchInterval) { clearInterval(teamRematchInterval); teamRematchInterval = null; }
+
+  const status = document.getElementById('t-rematch-status');
+  status.textContent = 'You accepted! Waiting for others...';
+  status.classList.remove('hidden');
+});
+
+// ---- Decline rematch ----
+document.getElementById('team-rematch-decline-btn').addEventListener('click', () => {
+  playSound('click');
+  socket.emit('team-rematch-decline');
+  document.getElementById('team-rematch-modal').classList.add('hidden');
+  if (teamRematchInterval) { clearInterval(teamRematchInterval); teamRematchInterval = null; }
+  showScreen('home');
+});
+
+// ---- Rematch starting (all accepted, going to toss) ----
+socket.on('team-rematch-starting', () => {
+  document.getElementById('team-rematch-modal').classList.add('hidden');
+  if (teamRematchInterval) { clearInterval(teamRematchInterval); teamRematchInterval = null; }
+  // Server will emit toss events, client will switch screens automatically
+});
+
+// ---- Rematch going to lobby (some declined) ----
+socket.on('team-rematch-lobby', () => {
+  document.getElementById('team-rematch-modal').classList.add('hidden');
+  if (teamRematchInterval) { clearInterval(teamRematchInterval); teamRematchInterval = null; }
+  showScreen('teamLobby');
+});
+
+// ---- Kicked from rematch (declined or timed out) ----
+socket.on('team-rematch-kicked', () => {
+  document.getElementById('team-rematch-modal').classList.add('hidden');
+  if (teamRematchInterval) { clearInterval(teamRematchInterval); teamRematchInterval = null; }
+  showScreen('home');
+});
+
 document.getElementById('t-home-btn').addEventListener('click', () => {
   playSound('click');
+  // Decline any pending rematch
+  socket.emit('team-rematch-decline');
   showScreen('home');
 });
 
@@ -2219,8 +2441,9 @@ document.getElementById('transfer-captain-btn').addEventListener('click', () => 
   const listEl = document.getElementById('transfer-pick-list');
   listEl.innerHTML = '';
 
-  const teammates = state.team.players.filter(p => p.team === me.team && p.id !== me.id);
-  if (!teammates.length) return;
+  // Filter out bot players from transfer list
+  const teammates = state.team.players.filter(p => p.team === me.team && p.id !== me.id && !p.isBot);
+  if (!teammates.length) return; // Only bot left — can't transfer
 
   teammates.forEach(p => {
     const btn = document.createElement('button');
@@ -2408,43 +2631,352 @@ document.getElementById('scorecard-close-btn').addEventListener('click', () => {
 });
 
 // ===================================================================
-// ===== GLOBAL SETTINGS (top-right, every screen) ====================
+// ===== HAMBURGER DRAWER (top-left, every screen) ====================
 // ===================================================================
 
-const globalSettingsBtn = document.getElementById('global-settings-btn');
-const quickSettingsPanel = document.getElementById('quick-settings-panel');
-let screenBeforeSettings = null;
+const hamburgerBtn = document.getElementById('hamburger-btn');
+const drawer = document.getElementById('drawer');
+const drawerOverlay = document.getElementById('drawer-overlay');
 
-globalSettingsBtn.addEventListener('click', () => {
-  quickSettingsPanel.classList.toggle('hidden');
+function openDrawer() {
+  drawer.classList.add('open');
+  drawerOverlay.classList.remove('hidden');
+  setTimeout(() => drawerOverlay.classList.add('visible'), 10);
+  playSound('click');
+  // Refresh stats when opening
+  loadDrawerStats();
+}
+
+function closeDrawer() {
+  drawer.classList.remove('open');
+  drawerOverlay.classList.remove('visible');
+  setTimeout(() => drawerOverlay.classList.add('hidden'), 300);
+  playSound('click');
+}
+
+hamburgerBtn.addEventListener('click', openDrawer);
+document.getElementById('drawer-close-btn').addEventListener('click', closeDrawer);
+drawerOverlay.addEventListener('click', closeDrawer);
+
+// ---- Update drawer profile info ----
+function updateDrawerProfile() {
+  const user = HCAuth.getUser();
+  if (!user) return;
+
+  document.getElementById('drawer-display-name').textContent = HCAuth.getDisplayName();
+  document.getElementById('drawer-email').textContent = HCAuth.getEmail() || '';
+  document.getElementById('drawer-name-input').value = HCAuth.getDisplayName();
+
+  const provider = HCAuth.getProvider();
+  const badge = document.getElementById('drawer-provider-badge');
+  if (provider === 'google.com') badge.textContent = '🔵 Google Account';
+  else if (provider === 'guest') badge.textContent = '👤 Guest';
+  else badge.textContent = '';
+
+  // Show/hide upgrade vs signout buttons
+  const upgradeBtn = document.getElementById('drawer-upgrade-btn');
+  const signoutBtn = document.getElementById('drawer-signout-btn');
+
+  if (HCAuth.isGuest()) {
+    upgradeBtn.classList.remove('hidden');
+    signoutBtn.classList.add('hidden');
+  } else {
+    upgradeBtn.classList.add('hidden');
+    signoutBtn.classList.remove('hidden');
+  }
+}
+
+// ---- Load stats into stats page ----
+async function loadStatsPage() {
+  let stats = null;
+  const user = HCAuth.getUser();
+
+  if (user && !HCAuth.isGuest()) {
+    stats = await HCAuth.fetchStats(user.uid);
+    document.getElementById('stats-guest-note').classList.add('hidden');
+  } else {
+    // Guest: load from localStorage
+    stats = JSON.parse(localStorage.getItem('hc_stats') || 'null');
+    document.getElementById('stats-guest-note').classList.remove('hidden');
+  }
+
+  if (!stats) stats = {};
+
+  document.getElementById('sp-matches').textContent = stats.matchesPlayed || 0;
+  document.getElementById('sp-wins').textContent = stats.matchesWon || 0;
+  const winRate = (stats.matchesPlayed || 0) > 0
+    ? Math.round(((stats.matchesWon || 0) / stats.matchesPlayed) * 100)
+    : 0;
+  document.getElementById('sp-winrate').textContent = winRate + '%';
+  document.getElementById('sp-runs').textContent = stats.totalRuns || 0;
+  document.getElementById('sp-highest').textContent = stats.highestScore || 0;
+  document.getElementById('sp-wickets').textContent = stats.totalWickets || 0;
+  document.getElementById('sp-best-bowling').textContent = stats.bestBowling || 0;
+  document.getElementById('sp-streak').textContent = stats.currentStreak || 0;
+  document.getElementById('sp-best-streak').textContent = stats.bestStreak || 0;
+}
+
+// Keep backward compat alias for upgrade flow
+const loadDrawerStats = loadStatsPage;
+
+// ---- Save name from drawer ----
+document.getElementById('drawer-save-name-btn').addEventListener('click', async () => {
+  const input = document.getElementById('drawer-name-input');
+  const btn = document.getElementById('drawer-save-name-btn');
+  const name = capitalizeFirst(input.value.trim());
+
+  // Validation: minimum 2 characters
+  if (!name || name.length < 2) {
+    input.style.borderColor = 'var(--pink)';
+    input.style.animation = 'shakeX 0.5s ease';
+    setTimeout(() => { input.style.animation = ''; input.style.borderColor = ''; }, 600);
+    return;
+  }
+
+  // Show saving state
+  const originalText = btn.textContent;
+  btn.textContent = 'Saving...';
+  btn.disabled = true;
+
+  state.playerName = name;
+  document.getElementById('player-display-name').textContent = name;
+
+  try {
+    if (!HCAuth.isGuest()) {
+      await HCAuth.updateDisplayName(name);
+    } else {
+      // For guests: update Firebase profile directly (no Firestore)
+      const user = HCAuth.getUser();
+      if (user) await user.updateProfile({ displayName: name });
+    }
+
+    // Update drawer display immediately
+    document.getElementById('drawer-display-name').textContent = name;
+
+    btn.textContent = '✅ Saved!';
+    playSound('success');
+    setTimeout(() => { btn.textContent = originalText; btn.disabled = false; }, 1500);
+  } catch (err) {
+    btn.textContent = '❌ Failed';
+    setTimeout(() => { btn.textContent = originalText; btn.disabled = false; }, 1500);
+  }
+});
+
+// ---- Helper: complete the upgrade after linking ----
+async function completeUpgrade(user) {
+  state.playerName = user.displayName || state.playerName;
+  document.getElementById('player-display-name').textContent = state.playerName;
+  authToken = await HCAuth.getIdToken();
+
+  // Reconnect socket with new auth token
+  if (socket) { socket.disconnect(); socket = null; }
+  connectSocket();
+
+  updateDrawerProfile();
+  await loadDrawerStats();
+  playSound('success');
+}
+
+// ---- Upgrade guest to Google ----
+document.getElementById('drawer-upgrade-btn').addEventListener('click', async () => {
+  const btn = document.getElementById('drawer-upgrade-btn');
+  btn.querySelector('span').textContent = 'Linking...';
+  btn.disabled = true;
+
+  // Gather local stats to migrate
+  const localStats = JSON.parse(localStorage.getItem('hc_stats') || 'null');
+
+  const result = await HCAuth.linkGuestToGoogle(localStats);
+
+  if (result.success) {
+    await completeUpgrade(result.user);
+    btn.querySelector('span').textContent = '✅ Linked!';
+    setTimeout(() => { btn.querySelector('span').textContent = 'Sign up with Google'; btn.disabled = false; }, 1500);
+  } else if (result.conflict) {
+    // Show the choice modal
+    closeDrawer();
+    const modal = document.getElementById('stats-choice-modal');
+
+    // Fill in current (local) stats
+    document.getElementById('choice-current-matches').textContent = localStats?.matchesPlayed || 0;
+    document.getElementById('choice-current-wins').textContent = localStats?.matchesWon || 0;
+    document.getElementById('choice-current-runs').textContent = localStats?.totalRuns || 0;
+
+    // Fill in previous (cloud) stats
+    document.getElementById('choice-prev-matches').textContent = result.cloudStats.matchesPlayed || 0;
+    document.getElementById('choice-prev-wins').textContent = result.cloudStats.matchesWon || 0;
+    document.getElementById('choice-prev-runs').textContent = result.cloudStats.totalRuns || 0;
+
+    modal.classList.remove('hidden');
+
+    // Store data for button handlers
+    modal._conflictData = {
+      user: result.user,
+      localStats: localStats,
+      cloudStats: result.cloudStats
+    };
+
+    btn.querySelector('span').textContent = 'Sign up with Google';
+    btn.disabled = false;
+  } else {
+    btn.querySelector('span').textContent = result.error || 'Failed';
+    setTimeout(() => { btn.querySelector('span').textContent = 'Sign up with Google'; btn.disabled = false; }, 2000);
+  }
+});
+
+// ---- Stats choice: Keep Current (local) ----
+document.getElementById('stats-choice-current-btn').addEventListener('click', async () => {
+  const modal = document.getElementById('stats-choice-modal');
+  const data = modal._conflictData;
+  if (!data) return;
+
+  // Overwrite cloud stats with local stats
+  await HCAuth.resolveConflict(data.user.uid, data.localStats || {
+    matchesPlayed: 0, matchesWon: 0, matchesLost: 0,
+    totalRuns: 0, highestScore: 0, totalWickets: 0,
+    bestBowling: 0, currentStreak: 0, bestStreak: 0
+  });
+
+  modal.classList.add('hidden');
+  await completeUpgrade(data.user);
+  modal._conflictData = null;
+});
+
+// ---- Stats choice: Load Previous (cloud) ----
+document.getElementById('stats-choice-prev-btn').addEventListener('click', async () => {
+  const modal = document.getElementById('stats-choice-modal');
+  const data = modal._conflictData;
+  if (!data) return;
+
+  // Keep cloud stats as-is (no update needed)
+  modal.classList.add('hidden');
+  await completeUpgrade(data.user);
+  modal._conflictData = null;
+});
+
+// ---- Sign out ----
+document.getElementById('drawer-signout-btn').addEventListener('click', async () => {
+  closeDrawer();
+  await HCAuth.signOut();
+  // Disconnect socket
+  if (socket) {
+    socket.disconnect();
+    socket = null;
+  }
+  state.playerName = '';
+  authToken = null;
+  localStorage.removeItem('hc_guest_name');
+  showScreen('auth');
   playSound('click');
 });
 
-document.getElementById('qsp-close-btn').addEventListener('click', () => {
-  quickSettingsPanel.classList.add('hidden');
+// ---- Force disconnect (single-device enforcement) ----
+function handleForceDisconnect(msg) {
+  const modal = document.getElementById('force-disconnect-modal');
+  document.getElementById('force-disconnect-msg').textContent = msg || 'Your account was signed in on another device.';
+  modal.classList.remove('hidden');
+
+  document.getElementById('force-disconnect-ok-btn').addEventListener('click', async () => {
+    modal.classList.add('hidden');
+    await HCAuth.signOut();
+    if (socket) { socket.disconnect(); socket = null; }
+    state.playerName = '';
+    authToken = null;
+    showScreen('auth');
+  }, { once: true });
+}
+
+// ---- Drawer: My Stats button ----
+document.getElementById('drawer-stats-btn').addEventListener('click', () => {
+  closeDrawer();
+  loadStatsPage();
+  showScreen('stats');
   playSound('click');
 });
 
-document.getElementById('qsp-full-settings-btn').addEventListener('click', () => {
-  quickSettingsPanel.classList.add('hidden');
-  screenBeforeSettings = currentScreenName;
+// ---- Drawer: Feedback button ----
+document.getElementById('drawer-feedback-btn').addEventListener('click', () => {
+  if (HCAuth.isGuest()) {
+    closeDrawer();
+    // Show error modal for guests
+    const modal = document.getElementById('force-disconnect-modal');
+    document.getElementById('force-disconnect-msg').textContent = '⚠️ Please sign in with Google to submit feedback.';
+    modal.classList.remove('hidden');
+    document.getElementById('force-disconnect-ok-btn').addEventListener('click', () => {
+      modal.classList.add('hidden');
+    }, { once: true });
+    return;
+  }
+  closeDrawer();
+  // Reset feedback form
+  document.getElementById('feedback-textarea').value = '';
+  document.getElementById('feedback-char-current').textContent = '0';
+  document.getElementById('feedback-success-msg').classList.add('hidden');
+  document.getElementById('feedback-submit-btn').disabled = false;
+  document.getElementById('feedback-submit-btn').querySelector('span').textContent = 'Submit Feedback';
+  showScreen('feedback');
   playSound('click');
-  showScreen('settings');
 });
 
-// Close the quick settings popover when clicking outside it
-document.addEventListener('click', (e) => {
-  if (quickSettingsPanel.classList.contains('hidden')) return;
-  if (quickSettingsPanel.contains(e.target) || globalSettingsBtn.contains(e.target)) return;
-  quickSettingsPanel.classList.add('hidden');
+// ---- Stats back button ----
+document.getElementById('stats-back-btn').addEventListener('click', () => {
+  showScreen('home');
+  playSound('click');
 });
 
-// Settings-back-btn now returns to whichever screen the user came from
-const settingsBackBtnEl = document.getElementById('settings-back-btn');
-const newSettingsBackBtn = settingsBackBtnEl.cloneNode(true);
-settingsBackBtnEl.parentNode.replaceChild(newSettingsBackBtn, settingsBackBtnEl);
-newSettingsBackBtn.addEventListener('click', () => {
+// ---- Feedback back button ----
+document.getElementById('feedback-back-btn').addEventListener('click', () => {
+  showScreen('home');
   playSound('click');
-  showScreen(screenBeforeSettings || 'home');
-  screenBeforeSettings = null;
+});
+
+// ---- Feedback textarea character count ----
+document.getElementById('feedback-textarea').addEventListener('input', (e) => {
+  document.getElementById('feedback-char-current').textContent = e.target.value.length;
+});
+
+// ---- Feedback submit ----
+document.getElementById('feedback-submit-btn').addEventListener('click', async () => {
+  const text = document.getElementById('feedback-textarea').value.trim();
+  if (!text) {
+    const textarea = document.getElementById('feedback-textarea');
+    textarea.style.borderColor = 'var(--pink)';
+    textarea.style.animation = 'shakeX 0.5s ease';
+    setTimeout(() => { textarea.style.animation = ''; textarea.style.borderColor = ''; }, 600);
+    return;
+  }
+
+  const btn = document.getElementById('feedback-submit-btn');
+  btn.querySelector('span').textContent = 'Submitting...';
+  btn.disabled = true;
+
+  try {
+    await HCAuth.submitFeedback(text);
+    document.getElementById('feedback-success-msg').classList.remove('hidden');
+    document.getElementById('feedback-textarea').value = '';
+    document.getElementById('feedback-char-current').textContent = '0';
+    btn.querySelector('span').textContent = '✅ Submitted!';
+    playSound('success');
+  } catch (err) {
+    btn.querySelector('span').textContent = '❌ Failed to submit';
+    setTimeout(() => { btn.querySelector('span').textContent = 'Submit Feedback'; btn.disabled = false; }, 2000);
+  }
+});
+
+// ---- Bot Announcement ----
+function showBotAnnouncement(teamName) {
+  const overlay = document.getElementById('bot-announcement');
+  document.getElementById('bot-announce-team').textContent = 'Team ' + teamName;
+  overlay.classList.remove('hidden');
+  playSound('success');
+
+  // Auto-dismiss after 3 seconds
+  setTimeout(() => {
+    overlay.classList.add('hidden');
+  }, 3000);
+}
+
+// ---- Handle bot assigned event from server ----
+socket.on('team-bot-assigned', (data) => {
+  showBotAnnouncement(data.team);
 });
