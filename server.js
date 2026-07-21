@@ -1334,14 +1334,22 @@ io.on('connection', (socket) => {
   async function updatePlayerStats(room, winnerId) {
     if (!room || room.mode !== '1v1' || room.players.length !== 2) return;
 
-    for (const player of room.players) {
+    // Take a synchronous snapshot of the stats to avoid race conditions
+    // if the room resets (e.g. rematch) while we're awaiting Firestore
+    const statsSnapshot = room.players.map(p => ({
+      id: p.id,
+      score: p.score,
+      wicketsTaken: p.wicketsTaken,
+      isWinner: p.id === winnerId
+    }));
+
+    for (const pData of statsSnapshot) {
       // Find the socket for this player to get their userId
-      const playerSocket = io.sockets.sockets.get(player.id);
+      const playerSocket = io.sockets.sockets.get(pData.id);
       if (!playerSocket || !playerSocket.userId || playerSocket.userId.startsWith('guest_')) continue;
 
       const uid = playerSocket.userId;
-      const isWinner = player.id === winnerId;
-      const loser = room.players.find(p => p.id !== player.id);
+      const isWinner = pData.isWinner;
 
       try {
         const docRef = firestore.collection('users').doc(uid);
@@ -1351,15 +1359,15 @@ io.on('connection', (socket) => {
         const stats = doc.data().stats || {};
         const updates = {
           'stats.matchesPlayed': (stats.matchesPlayed || 0) + 1,
-          'stats.totalRuns': (stats.totalRuns || 0) + (player.score || 0),
-          'stats.totalWickets': (stats.totalWickets || 0) + (player.wicketsTaken || 0)
+          'stats.totalRuns': (stats.totalRuns || 0) + (pData.score || 0),
+          'stats.totalWickets': (stats.totalWickets || 0) + (pData.wicketsTaken || 0)
         };
 
-        if ((player.score || 0) > (stats.highestScore || 0)) {
-          updates['stats.highestScore'] = player.score;
+        if ((pData.score || 0) > (stats.highestScore || 0)) {
+          updates['stats.highestScore'] = pData.score;
         }
-        if ((player.wicketsTaken || 0) > (stats.bestBowling || 0)) {
-          updates['stats.bestBowling'] = player.wicketsTaken;
+        if ((pData.wicketsTaken || 0) > (stats.bestBowling || 0)) {
+          updates['stats.bestBowling'] = pData.wicketsTaken;
         }
 
         if (isWinner) {
