@@ -17,7 +17,7 @@ const app = express();
 const server = http.createServer(app);
 const io = new Server(server, {
   cors: { origin: '*' },
-  pingTimeout: 60000,
+  pingTimeout: 120000,
   pingInterval: 25000,
   transports: ['websocket', 'polling']
 });
@@ -543,7 +543,7 @@ function resetTeamRoomForRematch(code, allAccepted) {
   if (allAccepted) {
     // All accepted — teams stay, go to match toss (with bot check)
     const botAdded = teamAssignBotIfNeeded(code);
-    const delay = botAdded ? 4500 : 0;
+    const delay = botAdded ? 2000 : 0;
     setTimeout(() => {
       if (!rooms[code]) return;
       room.phase = 'match-toss';
@@ -725,12 +725,12 @@ function teamAssignBotIfNeeded(code) {
   room.hasBot = true;
 
   teamAddCommentary(code, `🤖 The Ultimate Bot joins Team ${smallerTeam}!`);
-  // Delay the announcement so it doesn't overlap with draft UI
+  // Brief delay for bot announcement
   setTimeout(() => {
     if (!rooms[code]) return;
     io.to(code).emit('team-bot-assigned', { team: smallerTeam, botName: 'The Ultimate Bot' });
     teamBroadcastState(code);
-  }, 1500);
+  }, 500);
   return true;
 }
 
@@ -795,7 +795,7 @@ function teamStartGame(code) {
     teamStartToss(code, 'draft', room.captains.A, room.captains.B);
   } else {
     const botAdded = teamAssignBotIfNeeded(code);
-    const delay = botAdded ? 4500 : 0; // Give time for bot announcement
+    const delay = botAdded ? 2000 : 0; // Give time for bot announcement
     setTimeout(() => {
       if (!rooms[code]) return;
       room.phase = 'match-toss';
@@ -1115,7 +1115,7 @@ io.on('connection', (socket) => {
 
     if (room.ballTimer) clearInterval(room.ballTimer);
 
-    let timeLeft = 10;
+    let timeLeft = 15;
     io.to(code).emit('ball-timer', { time: timeLeft });
 
     room.ballTimer = setInterval(() => {
@@ -1125,8 +1125,98 @@ io.on('connection', (socket) => {
       if (timeLeft <= 0) {
         clearInterval(room.ballTimer);
         room.ballTimer = null;
-        io.to(code).emit('game-error', { message: 'Time ran out! A player was too slow.' });
-        cleanupRoom(code);
+
+        // Auto-play a random number for any player who hasn't chosen
+        room.players.forEach(p => {
+          if (!p.currentChoice) {
+            p.currentChoice = Math.floor(Math.random() * 6) + 1;
+          }
+        });
+
+        // Resolve the ball using existing play-number logic
+        const batsman = room.battingPlayer;
+        const bowler = room.bowlingPlayer;
+        const batChoice = batsman.currentChoice;
+        const bowlChoice = bowler.currentChoice;
+
+        batsman.currentChoice = null;
+        bowler.currentChoice = null;
+
+        let isOut = batChoice === bowlChoice;
+        let runs = isOut ? 0 : batChoice;
+
+        bowler.ballsBowled++;
+        if (!isOut) {
+          batsman.score += runs;
+          batsman.balls++;
+          bowler.runsConceded += runs;
+        } else {
+          batsman.balls++;
+          batsman.isOut = true;
+          bowler.wicketsTaken++;
+        }
+
+        io.to(code).emit('ball-result', {
+          batChoice, bowlChoice, runs, isOut,
+          score: batsman.score, balls: batsman.balls,
+          battingId: batsman.id, bowlingId: bowler.id
+        });
+
+        // Check chase win
+        if (room.innings === 2 && !isOut && batsman.score >= room.target) {
+          setTimeout(() => {
+            if (!rooms[code]) return;
+            io.to(code).emit('match-over', {
+              winnerId: batsman.id, winnerName: batsman.name,
+              scores: {
+                [room.players[0].id]: { name: room.players[0].name, score: room.players[0].score, balls: room.players[0].balls },
+                [room.players[1].id]: { name: room.players[1].name, score: room.players[1].score, balls: room.players[1].balls }
+              },
+              message: `${batsman.name} chased it down!`,
+              scorecardData: { mode: '1v1', players: room.players.map(p => ({ id: p.id, name: p.name, score: p.score, balls: p.balls, isOut: p.isOut, ballsBowled: p.ballsBowled, runsConceded: p.runsConceded, wicketsTaken: p.wicketsTaken })), battingId: batsman.id, bowlingId: bowler.id, innings: room.innings, target: room.target }
+            });
+            cleanupRoom(code, batsman.id);
+          }, 2000);
+          return;
+        }
+
+        if (isOut) {
+          if (room.innings === 1) {
+            room.target = batsman.score + 1;
+            room.innings = 2;
+            const temp = room.battingPlayer;
+            room.battingPlayer = room.bowlingPlayer;
+            room.bowlingPlayer = temp;
+            room.battingPlayer.score = 0;
+            room.battingPlayer.balls = 0;
+            room.battingPlayer.isOut = false;
+            room.battingPlayer.currentChoice = null;
+            room.bowlingPlayer.currentChoice = null;
+            room.bowlingPlayer.ballsBowled = 0;
+            room.bowlingPlayer.runsConceded = 0;
+            room.bowlingPlayer.wicketsTaken = 0;
+            setTimeout(() => {
+              if (!rooms[code]) return;
+              io.to(code).emit('innings-change', { innings: 2, target: room.target, battingId: room.battingPlayer.id, battingName: room.battingPlayer.name, bowlingId: room.bowlingPlayer.id, bowlingName: room.bowlingPlayer.name });
+            }, 3000);
+            setTimeout(() => { if (rooms[code]) startBallTimer(code); }, 7000);
+            return;
+          } else {
+            const diff = room.target - batsman.score - 1;
+            const scData = { mode: '1v1', players: room.players.map(p => ({ id: p.id, name: p.name, score: p.score, balls: p.balls, isOut: p.isOut, ballsBowled: p.ballsBowled, runsConceded: p.runsConceded, wicketsTaken: p.wicketsTaken })), battingId: batsman.id, bowlingId: bowler.id, innings: room.innings, target: room.target };
+            let matchData;
+            if (diff === 0) {
+              matchData = { winnerId: null, winnerName: null, scores: { [room.players[0].id]: { name: room.players[0].name, score: room.players[0].score, balls: room.players[0].balls }, [room.players[1].id]: { name: room.players[1].name, score: room.players[1].score, balls: room.players[1].balls } }, message: 'Match Tied!', scorecardData: scData };
+            } else {
+              const winner = room.bowlingPlayer;
+              matchData = { winnerId: winner.id, winnerName: winner.name, scores: { [room.players[0].id]: { name: room.players[0].name, score: room.players[0].score, balls: room.players[0].balls }, [room.players[1].id]: { name: room.players[1].name, score: room.players[1].score, balls: room.players[1].balls } }, message: `${winner.name} wins by ${diff} run${diff === 1 ? '' : 's'}!`, scorecardData: scData };
+            }
+            setTimeout(() => { if (!rooms[code]) return; io.to(code).emit('match-over', matchData); cleanupRoom(code, matchData.winnerId); }, 2000);
+            return;
+          }
+        }
+
+        setTimeout(() => startBallTimer(code), 1500);
       }
     }, 1000);
   }
@@ -1215,7 +1305,7 @@ io.on('connection', (socket) => {
             [room.players[0].id]: { name: room.players[0].name, score: room.players[0].score, balls: room.players[0].balls },
             [room.players[1].id]: { name: room.players[1].name, score: room.players[1].score, balls: room.players[1].balls }
           },
-          message: `${batsman.name} wins by ${2 - 0} wickets!`,
+          message: `${batsman.name} chased it down!`,
           scorecardData: {
             mode: '1v1',
             players: room.players.map(p => ({
@@ -1336,19 +1426,22 @@ io.on('connection', (socket) => {
 
     // Take a synchronous snapshot of the stats to avoid race conditions
     // if the room resets (e.g. rematch) while we're awaiting Firestore
-    const statsSnapshot = room.players.map(p => ({
-      id: p.id,
-      score: p.score,
-      wicketsTaken: p.wicketsTaken,
-      isWinner: p.id === winnerId
-    }));
+    const statsSnapshot = room.players.map(p => {
+      // Capture userId NOW before socket might disconnect
+      const pSocket = io.sockets.sockets.get(p.id);
+      return {
+        id: p.id,
+        score: p.score,
+        wicketsTaken: p.wicketsTaken,
+        isWinner: p.id === winnerId,
+        userId: pSocket ? pSocket.userId : null
+      };
+    });
 
     for (const pData of statsSnapshot) {
-      // Find the socket for this player to get their userId
-      const playerSocket = io.sockets.sockets.get(pData.id);
-      if (!playerSocket || !playerSocket.userId || playerSocket.userId.startsWith('guest_')) continue;
+      if (!pData.userId || pData.userId.startsWith('guest_')) continue;
 
-      const uid = playerSocket.userId;
+      const uid = pData.userId;
       const isWinner = pData.isWinner;
 
       try {
@@ -1388,7 +1481,8 @@ io.on('connection', (socket) => {
 
         await docRef.update(updates);
         // Notify the player that stats were updated
-        if (playerSocket) playerSocket.emit('stats-updated', { success: true });
+        const notifySocket = io.sockets.sockets.get(pData.id);
+        if (notifySocket) notifySocket.emit('stats-updated', { success: true });
       } catch (err) {
         console.error('Failed to update stats for', uid, err.message);
       }
@@ -1555,7 +1649,7 @@ io.on('connection', (socket) => {
     if (room.unassigned.length === 0) {
       // Check if teams are unequal — add bot to smaller team
       const botAdded = teamAssignBotIfNeeded(socket.roomCode);
-      const tossDelay = botAdded ? 4500 : 0;
+      const tossDelay = botAdded ? 2000 : 0;
       setTimeout(() => {
         if (!rooms[socket.roomCode]) return;
         room.phase = 'match-toss';

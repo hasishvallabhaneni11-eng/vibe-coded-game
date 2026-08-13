@@ -1301,14 +1301,14 @@ html, body {
 }
 
 .num-btn:active {
-  transform: scale(0.92);
+  transform: scale(0.97);
 }
 
 .num-btn.selected {
   border-color: var(--green);
-  background: rgba(105, 240, 174, 0.12);
-  box-shadow: 0 0 25px rgba(105, 240, 174, 0.25);
-  animation: pulse 1.5s ease-in-out infinite;
+  background: rgba(105, 240, 174, 0.15);
+  box-shadow: 0 0 20px rgba(105, 240, 174, 0.3), inset 0 0 15px rgba(105, 240, 174, 0.08);
+  transform: scale(1);
 }
 
 .num-btn.selected span {
