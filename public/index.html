@@ -16,6 +16,13 @@
     <div class="app-loader-spinner"></div>
     <p class="app-loader-text">Loading...</p>
   </div>
+  <script>
+    // Failsafe: always dismiss loader after 5s even if Firebase/scripts fail
+    setTimeout(function() {
+      var loader = document.getElementById('app-loader');
+      if (loader) { loader.classList.add('fade-out'); setTimeout(function() { loader.remove(); }, 500); }
+    }, 5000);
+  </script>
   <canvas id="particle-canvas"></canvas>
   <div id="app">
 
