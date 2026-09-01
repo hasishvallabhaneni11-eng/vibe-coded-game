@@ -805,6 +805,13 @@ async function onAuthSuccess(user) {
 
 // ---- Listen for auto-login (returning user) ----
 HCAuth.onAuthStateChanged(async (user) => {
+  // Dismiss the loading splash
+  const appLoader = document.getElementById('app-loader');
+  if (appLoader) {
+    appLoader.classList.add('fade-out');
+    setTimeout(() => appLoader.remove(), 500);
+  }
+
   if (user) {
     await onAuthSuccess(user);
   } else {
