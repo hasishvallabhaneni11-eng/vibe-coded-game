@@ -22,6 +22,12 @@ const io = new Server(server, {
   transports: ['websocket', 'polling']
 });
 
+// Override Cloud Run's COOP header so Firebase popup auth works
+app.use((req, res, next) => {
+  res.setHeader('Cross-Origin-Opener-Policy', 'same-origin-allow-popups');
+  next();
+});
+
 app.use(express.static(path.join(__dirname, 'public')));
 
 const rooms = {};
