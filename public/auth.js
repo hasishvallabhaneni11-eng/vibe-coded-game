@@ -216,7 +216,11 @@ const HCAuth = (() => {
     auth.onAuthStateChanged(async (user) => {
       currentUser = user;
       if (user && !user.isAnonymous) {
-        await ensureUserDoc(user);
+        try {
+          await ensureUserDoc(user);
+        } catch (err) {
+          console.error('ensureUserDoc failed (non-fatal):', err.message);
+        }
       }
       callback(user);
     });
