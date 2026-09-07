@@ -55,7 +55,7 @@ const HCAuth = (() => {
           // Temporarily sign in to read existing stats
           const tempResult = await auth.signInWithCredential(err.credential);
           const existingStats = await fetchStats(tempResult.user.uid);
-          
+
           // If cloud account has no stats, just merge silently
           if (!existingStats || existingStats.matchesPlayed === 0) {
             if (localStats) {
@@ -63,7 +63,7 @@ const HCAuth = (() => {
             }
             return { success: true, user: tempResult.user };
           }
-          
+
           // Cloud has stats — return conflict so UI can ask the user
           return {
             success: false,
@@ -249,20 +249,6 @@ const HCAuth = (() => {
     return currentUser.providerData[0]?.providerId || 'unknown';
   }
 
-  // ---- Submit Feedback to Firestore ----
-  async function submitFeedback(text) {
-    if (!currentUser || currentUser.isAnonymous) {
-      throw new Error('Must be signed in with Google to submit feedback.');
-    }
-    await db.collection('feedback').add({
-      userId: currentUser.uid,
-      displayName: currentUser.displayName || 'Unknown',
-      email: currentUser.email || null,
-      text: text,
-      createdAt: firebase.firestore.FieldValue.serverTimestamp()
-    });
-  }
-
   return {
     signInWithGoogle,
     linkGuestToGoogle,
@@ -272,7 +258,6 @@ const HCAuth = (() => {
     getIdToken,
     fetchStats,
     updateDisplayName,
-    submitFeedback,
     onAuthStateChanged,
     isGuest,
     getUser,
