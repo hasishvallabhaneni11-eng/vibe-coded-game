@@ -455,7 +455,7 @@ class AudioEngine {
 
   stopBgAmbience() {
     this.bgOscillators.forEach(o => {
-      try { o.stop(); } catch (e) { }
+      try { o.stop(); } catch(e) {}
     });
     this.bgOscillators = [];
     this.currentBg = null;
@@ -484,17 +484,17 @@ class AudioEngine {
     // Ascending chord progression that scales with milestone
     const chords = level >= 200
       ? [
-        { notes: [262, 330, 392], time: 0.7, dur: 0.3 },
-        { notes: [330, 415, 494], time: 0.95, dur: 0.3 },
-        { notes: [392, 494, 587], time: 1.15, dur: 0.3 },
-        { notes: [494, 622, 740], time: 1.35, dur: 0.4 },
-        { notes: [523, 659, 784], time: 1.55, dur: 0.4 },
-        { notes: [659, 831, 988], time: 1.8, dur: 0.5 },
-        { notes: [784, 988, 1175], time: 2.1, dur: 0.6 },
-        { notes: [1047, 1319, 1568], time: 2.5, dur: 1.0 }
-      ]
+          { notes: [262, 330, 392], time: 0.7, dur: 0.3 },
+          { notes: [330, 415, 494], time: 0.95, dur: 0.3 },
+          { notes: [392, 494, 587], time: 1.15, dur: 0.3 },
+          { notes: [494, 622, 740], time: 1.35, dur: 0.4 },
+          { notes: [523, 659, 784], time: 1.55, dur: 0.4 },
+          { notes: [659, 831, 988], time: 1.8, dur: 0.5 },
+          { notes: [784, 988, 1175], time: 2.1, dur: 0.6 },
+          { notes: [1047, 1319, 1568], time: 2.5, dur: 1.0 }
+        ]
       : level >= 100
-        ? [
+      ? [
           { notes: [330, 415, 494], time: 0.7, dur: 0.3 },
           { notes: [392, 494, 587], time: 0.95, dur: 0.3 },
           { notes: [523, 659, 784], time: 1.2, dur: 0.4 },
@@ -502,7 +502,7 @@ class AudioEngine {
           { notes: [784, 988, 1175], time: 1.85, dur: 0.6 },
           { notes: [1047, 1319, 1568], time: 2.3, dur: 0.8 }
         ]
-        : [
+      : [
           { notes: [392, 494, 587], time: 0.7, dur: 0.3 },
           { notes: [523, 659, 784], time: 1.0, dur: 0.4 },
           { notes: [659, 831, 988], time: 1.3, dur: 0.5 },
@@ -556,7 +556,7 @@ document.addEventListener('touchstart', () => {
 
 function playSound(type) {
   if (!state.soundEnabled || !audio.initialized) return;
-  switch (type) {
+  switch(type) {
     case 'click': audio.click(); break;
     case 'whoosh': audio.whoosh(); break;
     case 'success': audio.success(); break;
@@ -593,6 +593,8 @@ const state = {
 const screens = {
   auth: document.getElementById('auth-screen'),
   home: document.getElementById('home-screen'),
+  stats: document.getElementById('stats-screen'),
+  feedback: document.getElementById('feedback-screen'),
   room: document.getElementById('room-screen'),
   waiting: document.getElementById('waiting-screen'),
   join: document.getElementById('join-screen'),
@@ -640,7 +642,7 @@ function showScreen(name) {
     audio.stopBgAmbience();
   }
   if (name !== 'teamLobby' && name !== 'teamDraft' && name !== 'teamGame' &&
-    name !== 'teamToss' && name !== 'teamTossChoice') {
+      name !== 'teamToss' && name !== 'teamTossChoice') {
     document.getElementById('transfer-captain-btn').classList.add('hidden');
   }
 
@@ -790,49 +792,34 @@ function hideAuthError() {
 }
 
 async function onAuthSuccess(user) {
-  console.log('[AUTH] onAuthSuccess called for:', user.displayName, user.uid);
-  state.playerName = user.displayName || 'Player';
+  state.playerName = user.displayName || localStorage.getItem('hc_guest_name') || 'Player';
+  authToken = await HCAuth.getIdToken();
 
-  try {
-    console.log('[AUTH] Getting ID token...');
-    // Timeout after 8 seconds if token fetch hangs
-    authToken = await Promise.race([
-      HCAuth.getIdToken(),
-      new Promise((_, reject) => setTimeout(() => reject(new Error('Token timeout')), 8000))
-    ]);
-    console.log('[AUTH] Token received OK');
-  } catch (err) {
-    console.error('[AUTH] Token failed:', err.message);
-    // Sign out and show auth screen so user can re-login
-    await HCAuth.signOut();
-    resetAuthScreen();
-    showScreen('auth');
-    showAuthError('Session expired. Please sign in again.');
-    return;
-  }
-
-  console.log('[AUTH] Setting up UI...');
   document.getElementById('player-display-name').textContent = state.playerName;
 
   // Update drawer profile
   updateDrawerProfile();
 
-  console.log('[AUTH] Connecting socket...');
   connectSocket();
   playSound('success');
   showScreen('home');
-  console.log('[AUTH] Done!');
 }
 
 // ---- Listen for auto-login (returning user) ----
-HCAuth.onAuthStateChanged(async (user) => {
-  // Dismiss the loading splash
-  const appLoader = document.getElementById('app-loader');
-  if (appLoader) {
-    appLoader.classList.add('fade-out');
-    setTimeout(() => appLoader.remove(), 500);
+let appLoaderHidden = false;
+function hideAppLoader() {
+  if (appLoaderHidden) return;
+  appLoaderHidden = true;
+  const loader = document.getElementById('app-loader');
+  if (loader) {
+    loader.classList.add('fade-out');
+    setTimeout(() => loader.remove(), 500);
   }
+}
+// Fallback: hide loader after 3s even if Firebase is slow
+setTimeout(hideAppLoader, 3000);
 
+HCAuth.onAuthStateChanged(async (user) => {
   if (user) {
     await onAuthSuccess(user);
   } else {
@@ -845,24 +832,19 @@ HCAuth.onAuthStateChanged(async (user) => {
     resetAuthScreen();
     showScreen('auth');
   }
+  hideAppLoader();
 });
 
 // ---- Google Sign-In ----
 document.getElementById('auth-google-btn').addEventListener('click', async () => {
   showAuthLoading(true);
   hideAuthError();
-  try {
-    const result = await HCAuth.signInWithGoogle();
-    if (!result.success) {
-      showAuthLoading(false);
-      if (result.error !== 'Sign-in cancelled.') showAuthError(result.error);
-    }
-    // onAuthStateChanged handles the success case
-  } catch (err) {
-    console.error('Sign-in click handler error:', err);
+  const result = await HCAuth.signInWithGoogle();
+  if (!result.success) {
     showAuthLoading(false);
-    showAuthError('Sign-in failed: ' + err.message);
+    if (result.error !== 'Sign-in cancelled.') showAuthError(result.error);
   }
+  // onAuthStateChanged handles the success case
 });
 
 
@@ -892,6 +874,7 @@ document.getElementById('guest-submit-btn').addEventListener('click', async () =
     setTimeout(() => { document.getElementById('guest-name-input').style.animation = ''; }, 500);
     return;
   }
+  localStorage.setItem('hc_guest_name', name);
   showAuthLoading(true);
   const result = await HCAuth.signInAsGuest(name);
   if (!result.success) {
@@ -998,7 +981,7 @@ document.getElementById('join-back-btn').addEventListener('click', () => {
 
 document.getElementById('copy-code-btn').addEventListener('click', () => {
   const code = document.getElementById('room-code-text').textContent;
-  navigator.clipboard.writeText(code).catch(() => { });
+  navigator.clipboard.writeText(code).catch(() => {});
   playSound('success');
   const btn = document.getElementById('copy-code-btn');
   btn.innerHTML = '✓';
@@ -1030,7 +1013,7 @@ socket.on('force-disconnect', (data) => {
 
 // ---- Stats updated after match end ----
 socket.on('stats-updated', (data) => {
-  // Always refresh stats so they're up to date when the user opens the drawer
+  // Always refresh the cached stats so they're ready when the user opens the drawer
   loadDrawerStats();
 });
 
@@ -1260,6 +1243,7 @@ document.querySelectorAll('#number-grid .num-btn').forEach(btn => {
       b.disabled = true;
     });
     btn.classList.add('selected');
+    document.getElementById('game-instruction').textContent = "Waiting for opponent...";
 
     socket.emit('play-number', { number: num });
   });
@@ -1273,7 +1257,7 @@ socket.on('ball-timer', (data) => {
   const time = data.time;
   document.getElementById('game-timer-text').textContent = time;
   const progress = document.getElementById('game-timer-progress');
-  const offset = 283 - (time / 15) * 283;
+  const offset = 283 - (time / 10) * 283;
   progress.style.strokeDashoffset = offset;
   progress.classList.remove('warning', 'danger');
   if (time <= 3) progress.classList.add('danger');
@@ -1412,12 +1396,12 @@ socket.on('match-over', (data) => {
 document.getElementById('play-again-btn').addEventListener('click', () => {
   playSound('click');
   socket.emit('rematch-request');
-
+  
   // Show waiting state
   const btn = document.getElementById('play-again-btn');
   btn.disabled = true;
   btn.querySelector('.result-btn-label').textContent = 'Waiting...';
-
+  
   const status = document.getElementById('rematch-status');
   status.textContent = 'Waiting for opponent to accept...';
   status.classList.remove('hidden');
@@ -1441,7 +1425,7 @@ document.getElementById('rematch-accept-btn').addEventListener('click', () => {
   playSound('click');
   document.getElementById('rematch-modal').classList.add('hidden');
   socket.emit('rematch-request');
-
+  
   const status = document.getElementById('rematch-status');
   status.textContent = 'Rematch accepted! Starting...';
   status.classList.remove('hidden');
@@ -1499,7 +1483,7 @@ document.getElementById('error-ok-btn').addEventListener('click', () => {
 });
 
 document.querySelectorAll('.mode-card, .room-card, .btn, .num-btn, .rps-btn, .toss-btn, .btn-icon, .back-btn').forEach(el => {
-  el.addEventListener('mouseenter', function (e) {
+  el.addEventListener('mouseenter', function(e) {
     const glow = this.querySelector('.card-glow');
     if (glow) {
       const rect = this.getBoundingClientRect();
@@ -1509,7 +1493,7 @@ document.querySelectorAll('.mode-card, .room-card, .btn, .num-btn, .rps-btn, .to
     }
   });
 
-  el.addEventListener('mousemove', function (e) {
+  el.addEventListener('mousemove', function(e) {
     const glow = this.querySelector('.card-glow');
     if (glow) {
       const rect = this.getBoundingClientRect();
@@ -1518,7 +1502,7 @@ document.querySelectorAll('.mode-card, .room-card, .btn, .num-btn, .rps-btn, .to
     }
   });
 
-  el.addEventListener('mouseleave', function () {
+  el.addEventListener('mouseleave', function() {
     const glow = this.querySelector('.card-glow');
     if (glow) glow.style.opacity = '0';
   });
@@ -1767,7 +1751,7 @@ document.getElementById('team-lobby-back-btn').addEventListener('click', () => {
 
 document.getElementById('lobby-copy-code-btn').addEventListener('click', () => {
   const code = document.getElementById('lobby-code-text').textContent;
-  navigator.clipboard.writeText(code).catch(() => { });
+  navigator.clipboard.writeText(code).catch(() => {});
   playSound('success');
   const btn = document.getElementById('lobby-copy-code-btn');
   btn.innerHTML = '✓';
@@ -1781,20 +1765,7 @@ document.getElementById('lobby-start-btn').addEventListener('click', () => {
   socket.emit('team-start-game');
 });
 
-function formatLobbyTime(seconds) {
-  const s = Math.max(0, seconds);
-  const m = Math.floor(s / 60);
-  const r = s % 60;
-  return `${m}:${r.toString().padStart(2, '0')}`;
-}
-
-socket.on('team-lobby-timer', (data) => {
-  document.getElementById('lobby-timer-value').textContent = formatLobbyTime(data.time);
-});
-
-socket.on('team-lobby-timeout', () => {
-  document.getElementById('lobby-timer-value').textContent = "Time's up";
-});
+// (lobby timer removed — manual start only)
 
 // ----- Lobby rendering -----
 function renderLobby(data) {
@@ -2121,6 +2092,7 @@ document.querySelectorAll('#t-number-grid .num-btn').forEach(btn => {
       b.disabled = true;
     });
     btn.classList.add('selected');
+    document.getElementById('t-game-instruction').textContent = "Waiting for opponent...";
 
     socket.emit('team-play-number', { number: num });
   });
@@ -2314,8 +2286,8 @@ socket.on('team-match-over', (data) => {
   const playersDiv = document.getElementById('t-final-player-scores');
   playersDiv.innerHTML = '';
 
-  const teamAPlayers = data.players.filter(p => p.team === 'A').sort((a, b) => b.score - a.score).slice(0, 2);
-  const teamBPlayers = data.players.filter(p => p.team === 'B').sort((a, b) => b.score - a.score).slice(0, 2);
+  const teamAPlayers = data.players.filter(p => p.team === 'A').sort((a,b) => b.score - a.score).slice(0, 2);
+  const teamBPlayers = data.players.filter(p => p.team === 'B').sort((a,b) => b.score - a.score).slice(0, 2);
 
   const makeCard = (p, team) => {
     const isWinTeam = team === data.winningTeam;
@@ -2339,10 +2311,6 @@ socket.on('team-match-over', (data) => {
   document.getElementById('transfer-captain-btn').classList.add('hidden');
   showScreen('teamResult');
 
-  if (myTeam === null) {
-    // shouldn't happen post-draft, but guard anyway
-  }
-
   if (isWinner) {
     spawnConfetti('t-confetti-container');
     playSound('win');
@@ -2351,8 +2319,107 @@ socket.on('team-match-over', (data) => {
   }
 });
 
+// ---- Team match finished: show play-again for host ----
+socket.on('team-match-finished', (data) => {
+  const playAgainBtn = document.getElementById('t-play-again-btn');
+  const statusEl = document.getElementById('t-rematch-status');
+  playAgainBtn.disabled = false;
+  playAgainBtn.querySelector('.result-btn-label').textContent = 'Play Again';
+  statusEl.classList.add('hidden');
+
+  if (data.hostId === socket.id) {
+    playAgainBtn.classList.remove('hidden');
+  } else {
+    playAgainBtn.classList.add('hidden');
+  }
+});
+
+// ---- Host clicks Play Again ----
+document.getElementById('t-play-again-btn').addEventListener('click', () => {
+  playSound('click');
+  socket.emit('team-rematch-request');
+
+  const btn = document.getElementById('t-play-again-btn');
+  btn.disabled = true;
+  btn.querySelector('.result-btn-label').textContent = 'Waiting...';
+
+  const status = document.getElementById('t-rematch-status');
+  status.textContent = 'Waiting for all players to accept...';
+  status.classList.remove('hidden');
+});
+
+// ---- Team rematch offer received (all players see this) ----
+let teamRematchInterval = null;
+socket.on('team-rematch-offer', (data) => {
+  const modal = document.getElementById('team-rematch-modal');
+  document.getElementById('team-rematch-prompt').textContent = `${data.hostName} wants to play again!`;
+
+  // Start countdown
+  let timeLeft = 10;
+  document.getElementById('team-rematch-countdown').textContent = timeLeft;
+
+  if (teamRematchInterval) clearInterval(teamRematchInterval);
+  teamRematchInterval = setInterval(() => {
+    timeLeft--;
+    document.getElementById('team-rematch-countdown').textContent = Math.max(0, timeLeft);
+    if (timeLeft <= 0) {
+      clearInterval(teamRematchInterval);
+      teamRematchInterval = null;
+      modal.classList.add('hidden');
+      // Server handles timeout
+    }
+  }, 1000);
+
+  modal.classList.remove('hidden');
+  playSound('click');
+});
+
+// ---- Accept rematch ----
+document.getElementById('team-rematch-accept-btn').addEventListener('click', () => {
+  playSound('click');
+  socket.emit('team-rematch-accept');
+  document.getElementById('team-rematch-modal').classList.add('hidden');
+  if (teamRematchInterval) { clearInterval(teamRematchInterval); teamRematchInterval = null; }
+
+  const status = document.getElementById('t-rematch-status');
+  status.textContent = 'You accepted! Waiting for others...';
+  status.classList.remove('hidden');
+});
+
+// ---- Decline rematch ----
+document.getElementById('team-rematch-decline-btn').addEventListener('click', () => {
+  playSound('click');
+  socket.emit('team-rematch-decline');
+  document.getElementById('team-rematch-modal').classList.add('hidden');
+  if (teamRematchInterval) { clearInterval(teamRematchInterval); teamRematchInterval = null; }
+  showScreen('home');
+});
+
+// ---- Rematch starting (all accepted, going to toss) ----
+socket.on('team-rematch-starting', () => {
+  document.getElementById('team-rematch-modal').classList.add('hidden');
+  if (teamRematchInterval) { clearInterval(teamRematchInterval); teamRematchInterval = null; }
+  // Server will emit toss events, client will switch screens automatically
+});
+
+// ---- Rematch going to lobby (some declined) ----
+socket.on('team-rematch-lobby', () => {
+  document.getElementById('team-rematch-modal').classList.add('hidden');
+  if (teamRematchInterval) { clearInterval(teamRematchInterval); teamRematchInterval = null; }
+  showScreen('teamLobby');
+});
+
+// ---- Kicked from rematch (declined or timed out) ----
+socket.on('team-rematch-kicked', () => {
+  document.getElementById('team-rematch-modal').classList.add('hidden');
+  if (teamRematchInterval) { clearInterval(teamRematchInterval); teamRematchInterval = null; }
+  showScreen('home');
+});
+
 document.getElementById('t-home-btn').addEventListener('click', () => {
   playSound('click');
+  // Decline any pending rematch
+  socket.emit('team-rematch-decline');
   showScreen('home');
 });
 
@@ -2374,8 +2441,9 @@ document.getElementById('transfer-captain-btn').addEventListener('click', () => 
   const listEl = document.getElementById('transfer-pick-list');
   listEl.innerHTML = '';
 
-  const teammates = state.team.players.filter(p => p.team === me.team && p.id !== me.id);
-  if (!teammates.length) return;
+  // Filter out bot players from transfer list
+  const teammates = state.team.players.filter(p => p.team === me.team && p.id !== me.id && !p.isBot);
+  if (!teammates.length) return; // Only bot left — can't transfer
 
   teammates.forEach(p => {
     const btn = document.createElement('button');
@@ -2605,42 +2673,51 @@ function updateDrawerProfile() {
   else if (provider === 'guest') badge.textContent = '👤 Guest';
   else badge.textContent = '';
 
-  // Show/hide guest note for stats
-  const guestNote = document.getElementById('drawer-guest-stats-note');
+  // Show/hide upgrade vs signout buttons
   const upgradeBtn = document.getElementById('drawer-upgrade-btn');
   const signoutBtn = document.getElementById('drawer-signout-btn');
 
   if (HCAuth.isGuest()) {
-    guestNote.classList.remove('hidden');
     upgradeBtn.classList.remove('hidden');
     signoutBtn.classList.add('hidden');
   } else {
-    guestNote.classList.add('hidden');
     upgradeBtn.classList.add('hidden');
     signoutBtn.classList.remove('hidden');
   }
 }
 
-// ---- Load stats into drawer ----
-async function loadDrawerStats() {
+// ---- Load stats into stats page ----
+async function loadStatsPage() {
+  let stats = null;
   const user = HCAuth.getUser();
-  if (!user || HCAuth.isGuest()) return;
 
-  const stats = await HCAuth.fetchStats(user.uid);
-  if (!stats) return;
+  if (user && !HCAuth.isGuest()) {
+    stats = await HCAuth.fetchStats(user.uid);
+    document.getElementById('stats-guest-note').classList.add('hidden');
+  } else {
+    // Guest: load from localStorage
+    stats = JSON.parse(localStorage.getItem('hc_stats') || 'null');
+    document.getElementById('stats-guest-note').classList.remove('hidden');
+  }
 
-  document.getElementById('stat-matches').textContent = stats.matchesPlayed || 0;
-  document.getElementById('stat-wins').textContent = stats.matchesWon || 0;
-  const winRate = stats.matchesPlayed > 0
-    ? Math.round((stats.matchesWon / stats.matchesPlayed) * 100)
+  if (!stats) stats = {};
+
+  document.getElementById('sp-matches').textContent = stats.matchesPlayed || 0;
+  document.getElementById('sp-wins').textContent = stats.matchesWon || 0;
+  const winRate = (stats.matchesPlayed || 0) > 0
+    ? Math.round(((stats.matchesWon || 0) / stats.matchesPlayed) * 100)
     : 0;
-  document.getElementById('stat-winrate').textContent = winRate + '%';
-  document.getElementById('stat-runs').textContent = stats.totalRuns || 0;
-  document.getElementById('stat-highest').textContent = stats.highestScore || 0;
-  document.getElementById('stat-wickets').textContent = stats.totalWickets || 0;
-  document.getElementById('stat-streak').textContent = stats.currentStreak || 0;
-  document.getElementById('stat-best-streak').textContent = stats.bestStreak || 0;
+  document.getElementById('sp-winrate').textContent = winRate + '%';
+  document.getElementById('sp-runs').textContent = stats.totalRuns || 0;
+  document.getElementById('sp-highest').textContent = stats.highestScore || 0;
+  document.getElementById('sp-wickets').textContent = stats.totalWickets || 0;
+  document.getElementById('sp-best-bowling').textContent = stats.bestBowling || 0;
+  document.getElementById('sp-streak').textContent = stats.currentStreak || 0;
+  document.getElementById('sp-best-streak').textContent = stats.bestStreak || 0;
 }
+
+// Keep backward compat alias for upgrade flow
+const loadDrawerStats = loadStatsPage;
 
 // ---- Save name from drawer ----
 document.getElementById('drawer-save-name-btn').addEventListener('click', async () => {
@@ -2788,6 +2865,7 @@ document.getElementById('drawer-signout-btn').addEventListener('click', async ()
   }
   state.playerName = '';
   authToken = null;
+  localStorage.removeItem('hc_guest_name');
   showScreen('auth');
   playSound('click');
 });
@@ -2807,3 +2885,98 @@ function handleForceDisconnect(msg) {
     showScreen('auth');
   }, { once: true });
 }
+
+// ---- Drawer: My Stats button ----
+document.getElementById('drawer-stats-btn').addEventListener('click', () => {
+  closeDrawer();
+  loadStatsPage();
+  showScreen('stats');
+  playSound('click');
+});
+
+// ---- Drawer: Feedback button ----
+document.getElementById('drawer-feedback-btn').addEventListener('click', () => {
+  if (HCAuth.isGuest()) {
+    closeDrawer();
+    // Show error modal for guests
+    const modal = document.getElementById('force-disconnect-modal');
+    document.getElementById('force-disconnect-msg').textContent = '⚠️ Please sign in with Google to submit feedback.';
+    modal.classList.remove('hidden');
+    document.getElementById('force-disconnect-ok-btn').addEventListener('click', () => {
+      modal.classList.add('hidden');
+    }, { once: true });
+    return;
+  }
+  closeDrawer();
+  // Reset feedback form
+  document.getElementById('feedback-textarea').value = '';
+  document.getElementById('feedback-char-current').textContent = '0';
+  document.getElementById('feedback-success-msg').classList.add('hidden');
+  document.getElementById('feedback-submit-btn').disabled = false;
+  document.getElementById('feedback-submit-btn').querySelector('span').textContent = 'Submit Feedback';
+  showScreen('feedback');
+  playSound('click');
+});
+
+// ---- Stats back button ----
+document.getElementById('stats-back-btn').addEventListener('click', () => {
+  showScreen('home');
+  playSound('click');
+});
+
+// ---- Feedback back button ----
+document.getElementById('feedback-back-btn').addEventListener('click', () => {
+  showScreen('home');
+  playSound('click');
+});
+
+// ---- Feedback textarea character count ----
+document.getElementById('feedback-textarea').addEventListener('input', (e) => {
+  document.getElementById('feedback-char-current').textContent = e.target.value.length;
+});
+
+// ---- Feedback submit ----
+document.getElementById('feedback-submit-btn').addEventListener('click', async () => {
+  const text = document.getElementById('feedback-textarea').value.trim();
+  if (!text) {
+    const textarea = document.getElementById('feedback-textarea');
+    textarea.style.borderColor = 'var(--pink)';
+    textarea.style.animation = 'shakeX 0.5s ease';
+    setTimeout(() => { textarea.style.animation = ''; textarea.style.borderColor = ''; }, 600);
+    return;
+  }
+
+  const btn = document.getElementById('feedback-submit-btn');
+  btn.querySelector('span').textContent = 'Submitting...';
+  btn.disabled = true;
+
+  try {
+    await HCAuth.submitFeedback(text);
+    document.getElementById('feedback-success-msg').classList.remove('hidden');
+    document.getElementById('feedback-textarea').value = '';
+    document.getElementById('feedback-char-current').textContent = '0';
+    btn.querySelector('span').textContent = '✅ Submitted!';
+    playSound('success');
+  } catch (err) {
+    btn.querySelector('span').textContent = '❌ Failed to submit';
+    setTimeout(() => { btn.querySelector('span').textContent = 'Submit Feedback'; btn.disabled = false; }, 2000);
+  }
+});
+
+// ---- Bot Announcement ----
+function showBotAnnouncement(teamName) {
+  const overlay = document.getElementById('bot-announcement');
+  document.getElementById('bot-announce-team').textContent = 'Team ' + teamName;
+  overlay.classList.remove('hidden');
+  playSound('success');
+
+  // Auto-dismiss after 3 seconds
+  setTimeout(() => {
+    overlay.classList.add('hidden');
+  }, 3000);
+}
+
+// ---- Handle bot assigned event from server ----
+socket.on('team-bot-assigned', (data) => {
+  showBotAnnouncement(data.team);
+});

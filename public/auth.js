@@ -10,11 +10,15 @@ const HCAuth = (() => {
   async function signInWithGoogle() {
     const provider = new firebase.auth.GoogleAuthProvider();
     try {
-      // Use redirect instead of popup — Cloud Run's COOP headers block popups
-      await auth.signInWithRedirect(provider);
-      // Page will redirect to Google, then back. onAuthStateChanged handles the rest.
-      return { success: true };
+      const result = await auth.signInWithPopup(provider);
+      return { success: true, user: result.user };
     } catch (err) {
+      if (err.code === 'auth/popup-closed-by-user') {
+        return { success: false, error: 'Sign-in cancelled.' };
+      }
+      if (err.code === 'auth/account-exists-with-different-credential') {
+        return { success: false, error: 'This account is already registered with a different sign-in method.' };
+      }
       console.error('Google sign-in error:', err);
       return { success: false, error: err.message };
     }
@@ -40,10 +44,10 @@ const HCAuth = (() => {
     }
     try {
       const provider = new firebase.auth.GoogleAuthProvider();
-      // Use redirect instead of popup — Cloud Run's COOP headers block popups
-      await user.linkWithRedirect(provider);
-      // Page will redirect, then onAuthStateChanged handles it
-      return { success: true };
+      const result = await user.linkWithPopup(provider);
+      // Fresh account — save local stats to cloud
+      await createUserDocWithStats(result.user, localStats);
+      return { success: true, user: result.user };
     } catch (err) {
       if (err.code === 'auth/credential-already-in-use') {
         // Google account already exists — fetch its stats and ask user
@@ -51,7 +55,7 @@ const HCAuth = (() => {
           // Temporarily sign in to read existing stats
           const tempResult = await auth.signInWithCredential(err.credential);
           const existingStats = await fetchStats(tempResult.user.uid);
-
+          
           // If cloud account has no stats, just merge silently
           if (!existingStats || existingStats.matchesPlayed === 0) {
             if (localStats) {
@@ -59,7 +63,7 @@ const HCAuth = (() => {
             }
             return { success: true, user: tempResult.user };
           }
-
+          
           // Cloud has stats — return conflict so UI can ask the user
           return {
             success: false,
@@ -245,6 +249,20 @@ const HCAuth = (() => {
     return currentUser.providerData[0]?.providerId || 'unknown';
   }
 
+  // ---- Submit Feedback to Firestore ----
+  async function submitFeedback(text) {
+    if (!currentUser || currentUser.isAnonymous) {
+      throw new Error('Must be signed in with Google to submit feedback.');
+    }
+    await db.collection('feedback').add({
+      userId: currentUser.uid,
+      displayName: currentUser.displayName || 'Unknown',
+      email: currentUser.email || null,
+      text: text,
+      createdAt: firebase.firestore.FieldValue.serverTimestamp()
+    });
+  }
+
   return {
     signInWithGoogle,
     linkGuestToGoogle,
@@ -254,6 +272,7 @@ const HCAuth = (() => {
     getIdToken,
     fetchStats,
     updateDisplayName,
+    submitFeedback,
     onAuthStateChanged,
     isGuest,
     getUser,
