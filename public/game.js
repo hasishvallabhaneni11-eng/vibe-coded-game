@@ -790,31 +790,38 @@ function hideAuthError() {
 }
 
 async function onAuthSuccess(user) {
+  console.log('[AUTH] onAuthSuccess called for:', user.displayName, user.uid);
   state.playerName = user.displayName || 'Player';
 
   try {
+    console.log('[AUTH] Getting ID token...');
     // Timeout after 8 seconds if token fetch hangs
     authToken = await Promise.race([
       HCAuth.getIdToken(),
       new Promise((_, reject) => setTimeout(() => reject(new Error('Token timeout')), 8000))
     ]);
+    console.log('[AUTH] Token received OK');
   } catch (err) {
-    console.error('Auth token failed:', err.message);
+    console.error('[AUTH] Token failed:', err.message);
     // Sign out and show auth screen so user can re-login
     await HCAuth.signOut();
     resetAuthScreen();
     showScreen('auth');
+    showAuthError('Session expired. Please sign in again.');
     return;
   }
 
+  console.log('[AUTH] Setting up UI...');
   document.getElementById('player-display-name').textContent = state.playerName;
 
   // Update drawer profile
   updateDrawerProfile();
 
+  console.log('[AUTH] Connecting socket...');
   connectSocket();
   playSound('success');
   showScreen('home');
+  console.log('[AUTH] Done!');
 }
 
 // ---- Listen for auto-login (returning user) ----
@@ -844,12 +851,18 @@ HCAuth.onAuthStateChanged(async (user) => {
 document.getElementById('auth-google-btn').addEventListener('click', async () => {
   showAuthLoading(true);
   hideAuthError();
-  const result = await HCAuth.signInWithGoogle();
-  if (!result.success) {
+  try {
+    const result = await HCAuth.signInWithGoogle();
+    if (!result.success) {
+      showAuthLoading(false);
+      if (result.error !== 'Sign-in cancelled.') showAuthError(result.error);
+    }
+    // onAuthStateChanged handles the success case
+  } catch (err) {
+    console.error('Sign-in click handler error:', err);
     showAuthLoading(false);
-    if (result.error !== 'Sign-in cancelled.') showAuthError(result.error);
+    showAuthError('Sign-in failed: ' + err.message);
   }
-  // onAuthStateChanged handles the success case
 });
 
 
