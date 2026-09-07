@@ -791,7 +791,21 @@ function hideAuthError() {
 
 async function onAuthSuccess(user) {
   state.playerName = user.displayName || 'Player';
-  authToken = await HCAuth.getIdToken();
+
+  try {
+    // Timeout after 8 seconds if token fetch hangs
+    authToken = await Promise.race([
+      HCAuth.getIdToken(),
+      new Promise((_, reject) => setTimeout(() => reject(new Error('Token timeout')), 8000))
+    ]);
+  } catch (err) {
+    console.error('Auth token failed:', err.message);
+    // Sign out and show auth screen so user can re-login
+    await HCAuth.signOut();
+    resetAuthScreen();
+    showScreen('auth');
+    return;
+  }
 
   document.getElementById('player-display-name').textContent = state.playerName;
 
