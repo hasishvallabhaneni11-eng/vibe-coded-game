@@ -869,6 +869,30 @@
       </div>
     </div>
 
+    <!-- Stats Conflict Choice Modal (guest → Google upgrade) -->
+    <div id="stats-choice-modal" class="modal-overlay hidden">
+      <div class="modal-box">
+        <h3 class="modal-title">Choose Your Stats</h3>
+        <p class="modal-subtitle">Your Google account already has saved stats. Which do you want to keep?</p>
+        <div class="stats-choice-grid">
+          <div class="stats-choice-card">
+            <div class="stats-choice-label">Current (Local)</div>
+            <div class="stats-choice-row"><span>Matches:</span><span id="choice-current-matches">0</span></div>
+            <div class="stats-choice-row"><span>Wins:</span><span id="choice-current-wins">0</span></div>
+            <div class="stats-choice-row"><span>Runs:</span><span id="choice-current-runs">0</span></div>
+            <button class="btn btn-primary" id="stats-choice-current-btn">Keep Current</button>
+          </div>
+          <div class="stats-choice-card">
+            <div class="stats-choice-label">Previous (Cloud)</div>
+            <div class="stats-choice-row"><span>Matches:</span><span id="choice-prev-matches">0</span></div>
+            <div class="stats-choice-row"><span>Wins:</span><span id="choice-prev-wins">0</span></div>
+            <div class="stats-choice-row"><span>Runs:</span><span id="choice-prev-runs">0</span></div>
+            <button class="btn btn-ghost" id="stats-choice-prev-btn">Load Previous</button>
+          </div>
+        </div>
+      </div>
+    </div>
+
   </div>
 
   <!-- Firebase CDN (compat for vanilla JS) -->
