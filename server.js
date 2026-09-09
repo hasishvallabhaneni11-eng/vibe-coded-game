@@ -1221,7 +1221,7 @@ io.on('connection', (socket) => {
             [room.players[0].id]: { name: room.players[0].name, score: room.players[0].score, balls: room.players[0].balls },
             [room.players[1].id]: { name: room.players[1].name, score: room.players[1].score, balls: room.players[1].balls }
           },
-          message: `${batsman.name} wins by ${2 - 0} wickets!`,
+          message: `${batsman.name} chased it down!`,
           scorecardData: {
             mode: '1v1',
             players: room.players.map(p => ({
