@@ -17,9 +17,10 @@ const app = express();
 const server = http.createServer(app);
 const io = new Server(server, {
   cors: { origin: '*' },
-  pingTimeout: 60000,
-  pingInterval: 25000,
-  transports: ['websocket', 'polling']
+  pingTimeout: 30000,
+  pingInterval: 10000,
+  transports: ['polling', 'websocket'],
+  allowUpgrades: true
 });
 
 // Override Cloud Run's COOP header so Firebase popup auth works
